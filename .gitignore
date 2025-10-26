@@ -1,0 +1,48 @@
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.pyo
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Simulation results and data outputs
+results/
+output/
+*.csv
+*.tsv
+*.dat
+*.npy
+*.npz
+*.h5
+*.log
+*.out
+*.txt
+
+# Retired or backup code
+old/
+retired/
+backup/
+*.bak
+*.old
+*.tmp
+
+# VS Code and PyCharm project files
+.vscode/
+.idea/
+
+# Environment files
+.env
+.venv/
+venv/
+env/
+*.env
+
+# Miscellaneous
+.DS_Store
+Thumbs.db
