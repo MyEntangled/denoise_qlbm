@@ -1,4 +1,5 @@
 from src.qlbm.lbm_lattices import get_lattice
+from src.qlbm.gate_decomposition.block_encoding import nagy_block_encoding, schlimgen_block_encoding
 
 import numpy as np
 import jax.numpy as jnp
@@ -11,8 +12,7 @@ from functools import partial
 def loss_function(U: jnp.ndarray,
                   input_tensorstates: jnp.ndarray,
                   target_states: jnp.ndarray,
-                  Q: int,
-                  comp_weights: jnp.ndarray) -> jnp.ndarray:
+                  Q: int) -> jnp.ndarray:
     """
     L(U) = 1 - mean_i  |⟨0^r,y_i| U |a^r,x_i⟩| / sqrt(λ_i),
     where λ_i = || (⟨0^r|⊗I) U |a^r,x_i⟩ ||^2  (postselect ancilla = |0^r⟩).
@@ -23,20 +23,12 @@ def loss_function(U: jnp.ndarray,
 
     lam_sqrt = jnp.linalg.norm(Y_post, axis=-1, keepdims=True)   # sqrt(λ_i)
     lam_sqrt = jnp.where(lam_sqrt > 0, lam_sqrt, 1e-12)  # numeric guard
-
     Y_post_nml = Y_post / lam_sqrt
 
-    comp_weights_inv = 1. / comp_weights
-    comp_weights_inv = comp_weights_inv[None, None, ...]
+    overlap = jnp.abs(jnp.sum(target_states * Y_post_nml, axis=1))
+    overlap_error = 1.0 - jnp.mean(overlap)
 
-    overlap = jnp.abs(jnp.sum(comp_weights_inv * target_states * Y_post_nml, axis=1))
-    error = 1.0 - jnp.mean(overlap)
-
-
-
-    # error = comp_weights_inv**2 * (Y_post_nml - target_states)**2
-    # error = jnp.mean(jnp.sum(error, axis=-1))
-    return error
+    return overlap_error
 
 @jax.jit
 def relative_grad(X: jnp.ndarray, euclid_grad_X: jnp.ndarray) -> jnp.ndarray:
@@ -72,7 +64,6 @@ def safe_stepsize(X: jnp.ndarray, relative_grad_X: jnp.ndarray, mu: float, eps: 
     disc = jnp.maximum(disc, 0.0)  # numeric guard
     return (jnp.sqrt(disc) + alpha) / (2 * beta + 1e-18)
 
-
 def get_tensorstate(states: jnp.ndarray, r: int, ancilla: str) -> jnp.ndarray:
     """
     Construct composite tensor states |0^r>⊗|ψ> or |+^r>⊗|ψ>.
@@ -103,6 +94,8 @@ def get_tensorstate(states: jnp.ndarray, r: int, ancilla: str) -> jnp.ndarray:
 
     return new_states
 
+# ------------------------------------------
+
 
 class LearnedCollision:
     def __init__(self, lattice: str):
@@ -112,20 +105,18 @@ class LearnedCollision:
 
         self.cs = 1./np.sqrt(3)  # speed of sound
 
-
-    def train_collision_op(self,
-                           X,
-                           Y,
-                           r: int,
-                           comp_weights: np.ndarray,
-                           ancilla: str = "zero",
-                           eta: float = 0.5,
-                           mu: float = 1.0,
-                           eps: float = 0.5,
-                           max_steps: int = 10000,
-                           tol: float = 1e-9,
-                           rng: np.random.Generator | None = None,
-                           verbose: bool = True):
+    def train_collision_unitary(self,
+                                X,
+                                Y,
+                                r: int,
+                                ancilla: str = "zero",
+                                eta: float = 0.5,
+                                mu: float = 1.0,
+                                eps: float = 0.5,
+                                max_steps: int = 10000,
+                                tol: float = 1e-9,
+                                rng: np.random.Generator | None = None,
+                                verbose: bool = True):
         """
         Train an orthogonal (unitary) collision operator U for the quantum LBM model.
 
@@ -167,7 +158,6 @@ class LearnedCollision:
 
         X = jnp.asarray(X)
         Y = jnp.asarray(Y)
-        comp_weights = jnp.asarray(comp_weights)
         Q = X.shape[1]
 
         # Tensor product states with ancillas |0^r> or |+^r>
@@ -179,18 +169,18 @@ class LearnedCollision:
         U0, _ = np.linalg.qr(rng.standard_normal((new_dim, new_dim)))
         U = jnp.asarray(U0)
 
-        err0 = float(jnp.mean(loss_function(U, Xt, Y, Q, comp_weights)))
+        err0 = float(jnp.mean(loss_function(U, Xt, Y, Q)))
         history = {"error": [err0]}
         if verbose:
             print("Initial overlap:", 1.0 - err0)
 
         for step in range(max_steps):
-            egrad = jax.grad(loss_function)(U, Xt, Y, Q, comp_weights)
+            egrad = jax.grad(loss_function)(U, Xt, Y, Q)
             rgrad = relative_grad(U, egrad)
             eta_safe = safe_stepsize(U, rgrad, mu, eps)
             U = U - min(eta, eta_safe) * landing_field(U, rgrad, mu)
 
-            antifid = float(loss_function(U, Xt, Y, Q, comp_weights))
+            antifid = float(loss_function(U, Xt, Y, Q))
             history["error"].append(antifid)
             if antifid <= 1.0 and abs(history["error"][-1] - history["error"][-2]) < tol:
                 break
@@ -202,17 +192,17 @@ class LearnedCollision:
         U, _ = scipy.linalg.polar(U) # re-orthogonalize to fix numeric drift
 
         if verbose:
-            print("Final overlap (with re-orthog.):", 1.0 - float(loss_function(U, Xt, Y, Q, comp_weights)))
+            print("Final overlap (with re-orthog.):", 1.0 - float(loss_function(U, Xt, Y, Q)))
 
         return np.asarray(U), history
 
 
-    def test_collision_op(self,
-                          U,
-                          X_test,
-                          Y_test,
-                          r: int,
-                          ancilla: str = "zero") -> dict[str, float]:
+    def test_collision_unitary(self,
+                               U,
+                               X_test,
+                               Y_test,
+                               r: int,
+                               ancilla: str = "zero") -> dict[str, float]:
         """
         Evaluate a trained collision operator U on test data.
 
@@ -238,7 +228,7 @@ class LearnedCollision:
         Yt = get_tensorstate(Y_test, r, ancilla)
 
         # Compute loss (anti-overlap)
-        test_loss = float(jnp.mean(loss_function(U, Xt, Y_test, Q, comp_weights=jnp.ones(Q))))
+        test_loss = float(jnp.mean(loss_function(U, Xt, Y_test, Q)))
         test_overlap = 1.0 - test_loss
 
         print("Learned Collision Test Results:")
@@ -262,9 +252,9 @@ if __name__ == '__main__':
 
     # 1) Sample distributions (F) and their post-collision targets (F_target)
     rho = 1.0  # base density
-    mean_norm_u = 0.1/np.sqrt(3)  # mean |u| (in lattice units, small => low Mach)
+    mean_norm_u = 0.2/np.sqrt(3)  # mean |u| (in lattice units, small => low Mach)
     std_norm_u = 0.2/np.sqrt(3)  # std deviation of |u|
-    rel_noise_strength = 0.01  # relative magnitude of thermal/noise fluctuations
+    rel_noise_strength = 0.1  # relative magnitude of thermal/noise fluctuations
 
     F, F_target = sample_low_mach_data(
         n_samples=n_samples,
@@ -273,6 +263,7 @@ if __name__ == '__main__':
         mean_norm_u=mean_norm_u,
         std_norm_u=std_norm_u,
         rel_noise_strength=rel_noise_strength,
+        omega = 1.,
         rng=rng,
         weighted_noise=True
     )
@@ -286,19 +277,19 @@ if __name__ == '__main__':
     Xtr, Ytr, Xte, Yte = split_train_test(X, Y, train_ratio=0.8, shuffle=True, rng=rng)
     print("Train/test sizes:", Xtr.shape[0], Xte.shape[0])
 
-    # 4) Train collision operator U
+    # 4) Train collision operator U by landing algorithm
     collision_model = LearnedCollision(lattice=lattice)
 
     _, w = get_lattice(lattice, as_array=True)
 
-    U, history = collision_model.train_collision_op(
+    U, history = collision_model.train_collision_unitary(
         Xtr, Ytr, r=r,
-        comp_weights=w,
         ancilla=ancilla,
         eta=0.5, mu=1.0, eps=0.5,
         max_steps=5000, tol=1e-9,
         rng=rng, verbose=True
     )
+
 
     # 5) Unitary check and accuracy check
     unitarity_error = np.linalg.norm(U.conj().T @ U - np.eye(U.shape[0]))
@@ -306,5 +297,5 @@ if __name__ == '__main__':
     print(U[:9, :9].round(3))
 
     # 6) Evaluate on test set
-    metrics = collision_model.test_collision_op(U, Xte, Yte, r=r, ancilla=ancilla)
+    metrics = collision_model.test_collision_unitary(U, Xte, Yte, r=r, ancilla=ancilla)
     print(metrics)

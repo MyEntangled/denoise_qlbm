@@ -3,8 +3,7 @@ from src.qlbm.lbm_symmetries import permute_by_all_symmetries
 import numpy as np
 import jax.numpy as jnp
 
-
-def distributions_to_statevectors(F: np.ndarray,
+def distributions_to_statevectors(F,
                                   take_sqrt: bool = False,
                                   normalize: bool = False,
                                   symmetries: dict[str, object] | None = None):
@@ -22,24 +21,22 @@ def distributions_to_statevectors(F: np.ndarray,
         states: (batch', Q) array of processed state vectors
                 (batch' = batch × |symmetries| if symmetries provided)
     """
-    states = jnp.asarray(F, dtype=jnp.float32)
+    states = np.asarray(F, dtype=float)
 
     if take_sqrt:
-        states = jnp.sqrt(states)
+        states = np.sqrt(states)
 
     if normalize:
-        states = states / jnp.linalg.norm(states, axis=-1, keepdims=True)
+        states = states / np.linalg.norm(states, axis=-1, keepdims=True)
 
     if symmetries is not None and isinstance(symmetries, dict):
         stacked, _ = permute_by_all_symmetries(states, symmetries)
-        states = jnp.asarray(stacked).reshape(-1, states.shape[-1])
+        states = np.asarray(stacked).reshape(-1, states.shape[-1])
 
     return states
 
 
-
-
-def postselect_state(tensorstates: jnp.ndarray, r: int) -> jnp.ndarray:
+def postselect_state(tensorstates, r: int):
     """
     Postselect on the ancilla register being in state |0^r⟩.
 

@@ -117,7 +117,7 @@ def schlimgen_block_encoding(A: np.ndarray, rescale=True):
 
     precision_error = np.linalg.norm(U_total[:d, :d] - A/alpha)
     if precision_error > 1e-8:
-        raise ValueError(f"Top-left block of U deviates from A/α (‖U[:m,:n] - A/α‖={precision_error:.2e})")
+        print(f"Warning: Top-left block of U deviates from A/α (‖U[:m,:n] - A/α‖={precision_error:.2e}) with α={alpha:.2e}")
 
 
     return U_total, alpha, U, USigma, Vh

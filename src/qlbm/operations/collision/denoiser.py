@@ -66,7 +66,7 @@ class DenoisingCollision:
                     *[(u0[q]/cs2 if p == i else u0[p]/cs2 if q == i else 0) for p, q in combinations(range(len(u0)), 2)]
                 ])
 
-        else:
+        else:   # encoding_type == 'sqrt'
             ## Position b(u0)
             components.append([
                 1 - np.sum(u0 * u0) / (8*cs2),
@@ -162,13 +162,13 @@ if __name__ == '__main__':
     n_samples = 50000
     lattice = "D2Q9"
 
-    rho = 1.0
-    cs = 1/np.sqrt(3)
-    mean_norm_u = 0.1 * cs
+    rho = 1
+    cs = 1./np.sqrt(3)
+    mean_norm_u = 0.2 * cs
     std_norm_u = 0.2 * cs
     rel_noise_strength = 0.1  # relative magnitude of thermal/noise fluctuations
 
-    take_sqrt = False
+    take_sqrt = True
     normalize = True
     symmetries = get_symmetry(lattice)
 
@@ -180,6 +180,7 @@ if __name__ == '__main__':
         mean_norm_u=mean_norm_u,
         std_norm_u=std_norm_u,
         rel_noise_strength=rel_noise_strength,
+        omega=1.,
         rng=rng,
         weighted_noise=True
     )

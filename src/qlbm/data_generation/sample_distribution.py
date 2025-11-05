@@ -42,7 +42,7 @@ def _sample_uniform_distribution(num_samples: int,
 # --- Sample valid initial distributions and their post-collision distributions ---
 def sample_uniform_data(n_samples: int,
                         lattice: str,
-                        omega: int =1.0,
+                        omega: float =1.0,
                         weighted: bool = False,
                         rng: np.random.Generator | None = None,
                         oversample_factor: float = 1.2):
@@ -101,6 +101,7 @@ def sample_low_mach_data(n_samples: int,
                          mean_norm_u: float,
                          std_norm_u: float,
                          rel_noise_strength: float,
+                         omega: float = 1.0,
                          rng: np.random.Generator | None = None,
                          oversample_factor: float = 1.2,
                          weighted_noise: bool = True):
@@ -110,8 +111,8 @@ def sample_low_mach_data(n_samples: int,
     proportional to rho (LBM weights-aware if weighted_noise=True).
 
     Returns:
-        F_samples : (n_samples, Q)  = F_eq + eps   (nonnegative)
-        F_eq_samples : (n_samples, Q)             (nonnegative)
+        F_samples : (n_samples, Q)  = F_eq + eps
+        F_target : (n_samples, Q)  = (1-omega) * F_samples + omega * F_eq
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -197,7 +198,14 @@ def sample_low_mach_data(n_samples: int,
     if not ((F_samples >= 0.0).all() and (F_eq_samples >= 0.0).all()):
         raise AssertionError("Negative populations encountered unexpectedly.")
 
-    return F_samples, F_eq_samples
+    # BGK update
+    if np.isscalar(omega):
+        F_target = (1.0 - omega) * F_samples + omega * F_eq_samples
+    else:
+        omega = np.asarray(omega).reshape(-1, 1)
+        F_target = (1.0 - omega) * F_samples + omega * F_eq_samples
+
+    return F_samples, F_target
 
 if __name__ == "__main__":
     # Test uniform data sampling
