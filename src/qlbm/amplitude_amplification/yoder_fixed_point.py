@@ -94,31 +94,75 @@ def G_iter(alpha, beta, lmbda):
         raise ValueError("lambda must be in (0,1].")
     return - S_s(alpha, lmbda) @ S_t(beta)
 
+# ---------- Theory for prefix probabilities ----------
+def _zeta_sequence(L, delta):
+    """Compute ζ_1..ζ_L as in Eq. (13) of Yoder–Low–Chuang."""
 
-# ---------- Theoretical probabilities ----------
-def P_prefix_theory(h, lmbda, L, delta):
-    if not (0 < lmbda <= 1):
+    gamma_inv = chebyshev_T(1.0 / L, 1.0 / delta)  # = 1/γ
+    gamma = 1.0 / gamma_inv
+    s = np.sqrt(1.0 - gamma**2)
+
+    zeta = np.empty(L+1)  # start from 1 to L, ignore index 0
+    l = (L - 1) // 2
+
+    zeta[l+1] = ( -1 if (l % 2) else 1 ) * (np.pi/2)
+
+    # forward from center to L
+    for k in range(l+1, L):
+        y = np.tan(k * np.pi / L) * s
+        dzeta = ((-1)**k) * np.pi - 2.0 * np.arctan2(1.0, y)
+        zeta[k+1] = zeta[k] + dzeta
+
+    # reflect to get the left side (palindrome)
+    for k in range(1, l+1):
+        zeta[k] = zeta[L-k+1]
+    return zeta  # 0..L
+
+
+def P_prefix_theory(k, lam, L, delta):
+    """
+    Success probability after k generalized Grover iterates (0 <= k <= (L-1)//2),
+    using the YLC recurrence (Eqs. 12–15). Works for intermediates.
+    """
+    if not (0 < lam <= 1):
         raise ValueError("lambda must be in (0,1].")
 
-    gamma_inv = chebyshev_T(1.0 / L, 1.0 / delta)
-    x = np.sqrt(1.0 - lmbda)
+    l = (L - 1)//2
 
-    num = chebyshev_T(h, gamma_inv * x)
-    den = chebyshev_T(h, gamma_inv)
-    return 1.0 - (num / den) ** 2
+    if not (0 <= k <= l):
+        raise ValueError("k out of range.")
+
+    x = np.sqrt(1.0 - lam)
+
+    zeta = _zeta_sequence(L, delta) # [0,ζ_1,...,ζ_L]
+
+    # Recurrence (Eq. 14–15) evaluated at x = cos(phi/2) = sqrt(1-λ)
+    # Variable names: a_im2 = a_{i-2}, a_im1 = a_{i-1}, a_i = a_{i}
+
+    a_im2, a_im1 = 1.0, x  # a0, a1
+
+    h_target = 2*k + 1  # number of A_{ζ} steps corresponding to k Grover iterates
+    for h in range(2, h_target+1):
+        dzeta_h = zeta[h] - zeta[h-1]
+        a_i = x * (1.0 + np.exp(-1j*dzeta_h)) * a_im1 - np.exp(-1j*dzeta_h) * a_im2
+        a_im2, a_im1 = a_im1, a_i
+    return float(1.0 - abs(a_im1)**2)
+
 
 def P_final_theory(lmbda, L, delta):
     if not (0 < lmbda <= 1):
         raise ValueError("lambda must be in (0,1].")
 
     gamma_inv = chebyshev_T(1.0 / L, 1.0 / delta)
+    assert np.isclose(chebyshev_T(L, gamma_inv), 1/delta)  # sanity check
     x = np.sqrt(1.0 - lmbda)
+
     return 1.0 - (delta ** 2) * (chebyshev_T(L, gamma_inv * x)) ** 2
 
 
 # ---------- Simulation on the 2D invariant subspace ----------
 def simulate_prefix_probabilities(lmbda, L, delta):
-    """Return list P_h (h=0..l) from explicit matrix products of G(α_j,β_j)."""
+    """Return list P_h (h: number of Grover iterates, = 0..l) from explicit matrix products of G(α_j,β_j)."""
     if not (0 < lmbda <= 1):
         raise ValueError("lambda must be in (0,1].")
 
@@ -141,12 +185,12 @@ if __name__ == "__main__":
 
 
     # ---------- Demo parameters ----------
-    lambda_min = 0.03         # assumed lower bound on λ
-    delta = 0.1 ** 0.5        # choose delta so that δ^2 = 0.1 (for visibility)
+    lambda_min = 0.5         # assumed lower bound on λ
+    delta = 0.000001 ** 0.5        # choose delta so that δ^2 = 0.1 (for visibility)
     L = choose_L(lambda_min, delta)
     l = (L - 1) // 2
 
-    print(f"Chosen parameters: lambda_min={lambda_min}, delta={delta:.6f}, L={L} (queries = {L-1})")
+    print(f"Chosen parameters: lambda_min={lambda_min}, delta={delta}, L={L} (queries = {L-1})")
 
     # ---------- Verify designed endpoint equals theory, and bound >= 1 - δ^2 for λ ≥ λ_min ----------
     lmbdas = np.linspace(lambda_min, 0.9, 100)
@@ -157,10 +201,14 @@ if __name__ == "__main__":
     for lam in lmbdas:
         # simulate full prefix sequence to endpoint (h = l)
         P_prefix = simulate_prefix_probabilities(lam, L, delta)
+        print(f"Lambda = {lam}")
+
+
         P_end_sim = P_prefix[-1]
         P_end_th = P_final_theory(lam, L, delta)
         P_sim.append(P_end_sim)
         P_th.append(P_end_th)
+
         if P_end_sim + 1e-10 < (1.0 - delta**2):  # numerical tolerance
             violations += 1
 
@@ -183,11 +231,15 @@ if __name__ == "__main__":
     plt.show()
 
     # ---------- Also verify prefix-by-prefix for a single λ ----------
-    lam_test = 0.08  # ≥ lambda_min
+    lam_test = 0.9  # ≥ lambda_min
     P_prefix_sim = simulate_prefix_probabilities(lam_test, L, delta)
     P_prefix_th = [P_prefix_theory(h, lam_test, L, delta) for h in range(0, l + 1)]
+    P_end_th = P_final_theory(lam_test, L, delta)
+
+    print(P_prefix_th[-1], P_end_th)
+
     diffs = np.array(P_prefix_sim) - np.array(P_prefix_th)
     print(f"Prefix check at λ={lam_test:.3f}: max |sim-theory| over h=0..{l} is {np.max(np.abs(diffs)):.3e}")
     print("Prefix probabilities (h, sim, theory):")
-    for h in range(0, l + 1):
-        print(f"h={h:2d}:  {P_prefix_sim[h]:.9f}   {P_prefix_th[h]:.9f}")
+    for k in range(0, l + 1):
+        print(f"k={k:2d}:  {P_prefix_sim[k]:.9f}   {P_prefix_th[k]:.9f}")

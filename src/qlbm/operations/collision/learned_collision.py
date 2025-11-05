@@ -3,24 +3,40 @@ from src.qlbm.lbm_lattices import get_lattice
 import numpy as np
 import jax.numpy as jnp
 import jax
+import scipy.linalg
 from functools import partial
 
 # --- JITted functions: perform optimization on the orthogonal group using landing algorithm [arXiv:2102.07432]---
-@partial(jax.jit, static_argnames=("Q",))
+@partial(jax.jit, static_argnames=("Q"))
 def loss_function(U: jnp.ndarray,
                   input_tensorstates: jnp.ndarray,
-                  target_tensorstates: jnp.ndarray,
-                  Q: int) -> jnp.ndarray:
+                  target_states: jnp.ndarray,
+                  Q: int,
+                  comp_weights: jnp.ndarray) -> jnp.ndarray:
     """
     L(U) = 1 - mean_i  |⟨0^r,y_i| U |a^r,x_i⟩| / sqrt(λ_i),
     where λ_i = || (⟨0^r|⊗I) U |a^r,x_i⟩ ||^2  (postselect ancilla = |0^r⟩).
     """
-    Y = input_tensorstates @ U.T                 # apply collision: (U @ X^T)^T
-    Y_post = Y[:, :Q]                            # ancilla postselection: keep first Q comps
-    lam_sqrt = jnp.linalg.norm(Y_post, axis=1)   # sqrt(λ_i)
+    #Y = input_tensorstates @ U.T                 # apply collision: (U @ X^T)^T
+    Y = input_tensorstates @ U
+    Y_post = Y[..., :Q]                            # ancilla postselection: keep first Q comps
+
+    lam_sqrt = jnp.linalg.norm(Y_post, axis=-1, keepdims=True)   # sqrt(λ_i)
     lam_sqrt = jnp.where(lam_sqrt > 0, lam_sqrt, 1e-12)  # numeric guard
-    overlap = jnp.abs(jnp.sum(target_tensorstates * Y, axis=1))
-    return 1.0 - jnp.mean(overlap / lam_sqrt)
+
+    Y_post_nml = Y_post / lam_sqrt
+
+    comp_weights_inv = 1. / comp_weights
+    comp_weights_inv = comp_weights_inv[None, None, ...]
+
+    overlap = jnp.abs(jnp.sum(comp_weights_inv * target_states * Y_post_nml, axis=1))
+    error = 1.0 - jnp.mean(overlap)
+
+
+
+    # error = comp_weights_inv**2 * (Y_post_nml - target_states)**2
+    # error = jnp.mean(jnp.sum(error, axis=-1))
+    return error
 
 @jax.jit
 def relative_grad(X: jnp.ndarray, euclid_grad_X: jnp.ndarray) -> jnp.ndarray:
@@ -101,6 +117,7 @@ class LearnedCollision:
                            X,
                            Y,
                            r: int,
+                           comp_weights: np.ndarray,
                            ancilla: str = "zero",
                            eta: float = 0.5,
                            mu: float = 1.0,
@@ -150,35 +167,43 @@ class LearnedCollision:
 
         X = jnp.asarray(X)
         Y = jnp.asarray(Y)
+        comp_weights = jnp.asarray(comp_weights)
         Q = X.shape[1]
 
         # Tensor product states with ancillas |0^r> or |+^r>
         Xt = get_tensorstate(X, r, ancilla)  # (B, 2^r * Q)
-        Yt = get_tensorstate(Y, r, ancilla)
+        #Yt = get_tensorstate(Y, r, ancilla)
         new_dim = Q * (2 ** r)
 
         # Random orthogonal init (NumPy QR → JAX array)
         U0, _ = np.linalg.qr(rng.standard_normal((new_dim, new_dim)))
         U = jnp.asarray(U0)
 
-        err0 = float(jnp.mean(loss_function(U, Xt, Yt, Q)))
+        err0 = float(jnp.mean(loss_function(U, Xt, Y, Q, comp_weights)))
         history = {"error": [err0]}
         if verbose:
             print("Initial overlap:", 1.0 - err0)
 
-        for _ in range(max_steps):
-            egrad = jax.grad(loss_function)(U, Xt, Yt, Q)
+        for step in range(max_steps):
+            egrad = jax.grad(loss_function)(U, Xt, Y, Q, comp_weights)
             rgrad = relative_grad(U, egrad)
             eta_safe = safe_stepsize(U, rgrad, mu, eps)
             U = U - min(eta, eta_safe) * landing_field(U, rgrad, mu)
 
-            antifid = float(loss_function(U, Xt, Yt, Q))
+            antifid = float(loss_function(U, Xt, Y, Q, comp_weights))
             history["error"].append(antifid)
             if antifid <= 1.0 and abs(history["error"][-1] - history["error"][-2]) < tol:
                 break
 
+            if step > 0 and step % 10 == 0 and verbose:
+                print(f"Step {step}: overlap = {1.0 - antifid:.6f}")
+
+        U = np.asarray(U, dtype=float)
+        U, _ = scipy.linalg.polar(U) # re-orthogonalize to fix numeric drift
+
         if verbose:
-            print("Final overlap:", 1.0 - history["error"][-1])
+            print("Final overlap (with re-orthog.):", 1.0 - float(loss_function(U, Xt, Y, Q, comp_weights)))
+
         return np.asarray(U), history
 
 
@@ -209,11 +234,11 @@ class LearnedCollision:
 
         Q = X_test.shape[1]
 
-        X_tensor = get_tensorstate(X_test, r, ancilla)
-        Y_tensor = get_tensorstate(Y_test, r, ancilla)
+        Xt = get_tensorstate(X_test, r, ancilla)
+        Yt = get_tensorstate(Y_test, r, ancilla)
 
         # Compute loss (anti-overlap)
-        test_loss = float(jnp.mean(loss_function(U, X_tensor, Y_tensor, Q)))
+        test_loss = float(jnp.mean(loss_function(U, Xt, Y_test, Q, comp_weights=jnp.ones(Q))))
         test_overlap = 1.0 - test_loss
 
         print("Learned Collision Test Results:")
@@ -264,13 +289,22 @@ if __name__ == '__main__':
     # 4) Train collision operator U
     collision_model = LearnedCollision(lattice=lattice)
 
+    _, w = get_lattice(lattice, as_array=True)
+
     U, history = collision_model.train_collision_op(
-        Xtr, Ytr, r=r, ancilla=ancilla,
+        Xtr, Ytr, r=r,
+        comp_weights=w,
+        ancilla=ancilla,
         eta=0.5, mu=1.0, eps=0.5,
         max_steps=5000, tol=1e-9,
         rng=rng, verbose=True
     )
 
-    # 5) Evaluate on test set
+    # 5) Unitary check and accuracy check
+    unitarity_error = np.linalg.norm(U.conj().T @ U - np.eye(U.shape[0]))
+    print(f"Trained collision operator unitarity error: {unitarity_error:.2e}")
+    print(U[:9, :9].round(3))
+
+    # 6) Evaluate on test set
     metrics = collision_model.test_collision_op(U, Xte, Yte, r=r, ancilla=ancilla)
     print(metrics)

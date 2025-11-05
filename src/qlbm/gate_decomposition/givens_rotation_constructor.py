@@ -86,7 +86,7 @@ if __name__ == "__main__":
     from src.qlbm.gate_decomposition.clements_decomposition import unitary_to_givens_ops
 
     # 1. Create a random orthogonal matrix
-    N = 100
+    N = 18
     #U_original = np.eye(N)
     U_original, _ = np.linalg.qr(np.random.randn(N, N))
 
@@ -99,9 +99,11 @@ if __name__ == "__main__":
 
     # 3. Convert to rotation form
     givens_rots = ops_to_rots(givens_ops)
+    print(givens_rots)
 
     # 4. Verify the decomposition
     U_rec = check_decomposition(givens_rots, rel_phases, U_original)
-    print("Reconstructed ortho. matrix")
-    print(np.round(U_rec, 3))
+    #print("Reconstructed ortho. matrix")
+    #print(np.round(U_rec, 3))
+
 

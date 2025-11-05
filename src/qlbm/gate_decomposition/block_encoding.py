@@ -45,9 +45,14 @@ def nagy_block_encoding(A, rescale=True):
         U = U.real
 
     # Sanity check
-    err = np.linalg.norm(U.conj().T @ U - np.eye(m+n))
-    if err > 1e-8:
-        raise ValueError(f"U may not be exactly unitary (‖U* @ U − I‖={err:.2e})")
+    unitarity_error = np.linalg.norm(U.conj().T @ U - np.eye(m+n))
+    if unitarity_error > 1e-8:
+        raise ValueError(f"U may not be exactly unitary (‖U* @ U − I‖={unitarity_error:.2e})")
+
+    precision_error = np.linalg.norm(U[:m, :n] - B)
+    if precision_error > 1e-8:
+        raise ValueError(f"Top-left block of U deviates from A/α (‖U[:m,:n] - A/α‖={precision_error:.2e})")
+
 
 
     return U, alpha
@@ -57,7 +62,7 @@ def schlimgen_block_encoding(A: np.ndarray, rescale=True):
     """
     Block-encoding of Schlimgen et al. [https://arxiv.org/pdf/2205.02826, Figure 2].
     Builds the (2d)x(2d) unitary U acting on 1 ancilla + d-dim system s.t.
-        (⟨0|⊗I) U (|0⟩⊗·)  =  (A/α)  (·)
+        (⟨0|⊗I) U (|0⟩⊗I)  =  (A/α)  (·)
     with α = max(1, ||A||_2) if rescale=True, else α=1 (user must ensure ||A||≤1).
 
     Returns:
@@ -65,12 +70,11 @@ def schlimgen_block_encoding(A: np.ndarray, rescale=True):
         alpha   : float — the scaling actually used (≥1 if rescaled)
         U, Vh, Sigma : (U, V†, singular values) from SVD of A
     """
-    d_in, d_out = A.shape
-    if d_in != d_out:
-        raise ValueError("This implementation assumes square A (d×d). "
-                         "General rectangular A is possible but requires slight wiring changes.")
+    m, n = A.shape
+    if m != n:
+        raise ValueError("This implementation assumes square A (d×d).")
 
-    d = d_in
+    d = m
     # SVD
     U, s, Vh = np.linalg.svd(A, full_matrices=False)
     smax = float(np.max(s)) if s.size else 0.0
@@ -81,7 +85,7 @@ def schlimgen_block_encoding(A: np.ndarray, rescale=True):
     # For singular values σ ∈ [0,1], Eq. (2) simplifies to:
     #   Σ_i^± = σ_i  ±  i sqrt(1 - σ_i^2)     # Handle σ=0 edge case robustly.
 
-    sqrt_terms = np.sqrt(np.maximum(0.0, 1.0 - s_tilde**2))
+    sqrt_terms = np.sqrt(1.0 - s_tilde**2)
     Sigma_plus  = s_tilde + 1j * sqrt_terms
     Sigma_minus = s_tilde - 1j * sqrt_terms
 
@@ -90,29 +94,38 @@ def schlimgen_block_encoding(A: np.ndarray, rescale=True):
 
     # Build (I ⊗ V†) and (I ⊗ U)
     I_a = np.eye(2, dtype=np.complex128)
-    Id  = np.eye(d, dtype=np.complex128)
+    Id = np.eye(d, dtype=np.complex128)
+
     I_kron_Vh = np.kron(I_a, Vh)            # (2d x 2d)
     I_kron_U  = np.kron(I_a, U)             # (2d x 2d)
 
     # Hadamard on ancilla
-    H = (1/np.sqrt(2)) * np.array([[1, 1],
-                                   [1,-1]])
+    H = np.array([[1, 1], [1,-1]]) / np.sqrt(2)
     H_kron_I = np.kron(H, Id)
 
-    # Full unitary: (H⊗I) (I⊗U) U_Σ (I⊗V†) (H⊗I)
+    # Full unitary: (H ⊗ I) (I ⊗ U) U_Σ (I ⊗ V†) (H ⊗ I)
     U_total = H_kron_I @ I_kron_U @ USigma @ I_kron_Vh @ H_kron_I
 
-    # Optional sanity check
-    resid = np.linalg.norm(U_total.conj().T @ U_total - np.eye(2*d))
-    if resid > 1e-8:
-        print(f"Warning: non-unitary residual ‖U†U−I‖ ≈ {resid:.2e}")
+    # Realify U_total if possible
+    if np.allclose(U_total.imag, 0):
+        U_total = U_total.real
 
-    return U_total, alpha, U, Vh, s
+    # Sanity check
+    unitarity_error = np.linalg.norm(U_total.conj().T @ U_total - np.eye(2*d))
+    if unitarity_error > 1e-8:
+        print(f"Warning: non-unitary residual ‖U†U−I‖ ≈ {unitarity_error:.2e}")
+
+    precision_error = np.linalg.norm(U_total[:d, :d] - A/alpha)
+    if precision_error > 1e-8:
+        raise ValueError(f"Top-left block of U deviates from A/α (‖U[:m,:n] - A/α‖={precision_error:.2e})")
+
+
+    return U_total, alpha, U, USigma, Vh
 
 
 if __name__ == "__main__":
     lattice = "D2Q9"
-    take_sqrt = False
+    take_sqrt = True
 
     denoiser = DenoisingCollision(lattice=lattice)
     encoding_type = 'sqrt' if take_sqrt else 'full'
@@ -128,10 +141,9 @@ if __name__ == "__main__":
     # givens_rots = ops_to_rots(givens_ops)
 
 
-    U_sch, alpha, U_svd, Vh_svd, s_svd = schlimgen_block_encoding(D, rescale=True)
+    U_sch, alpha, U_svd, USigma, Vh_svd = schlimgen_block_encoding(D, rescale=True)
     print("Scaling factor:", alpha)
-    print("Scaled singular values:", s_svd)
-    print("Unitary U:")
+    print("Schlimgen block unitary:")
     print(U_sch[:9, :9].round(3))
 
 

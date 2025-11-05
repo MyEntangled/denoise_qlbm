@@ -43,14 +43,17 @@ def d3q19():
 
 @lru_cache
 def d3q27():
-    # all combinations of (-1,0,1)^3
-    c = [(0,0,0)]
+    # all combinations of {-1,0,1}^3
+
     faces = [(1,0,0), (-1,0,0), (0,1,0), (0,-1,0), (0,0,1), (0,0,-1)]
+
     # edges: exactly two nonzeros
     edges = []
     for a,b in product([1,-1],[1,-1]):
         edges += [(a,b,0),(a,0,b),(0,a,b)]
+
     corners = [(sx,sy,sz) for sx,sy,sz in product([1,-1],[1,-1],[1,-1])]
+
     c = [(0,0,0)] + faces + edges + corners
     w = [8/27] + [2/27]*6 + [1/54]*12 + [1/216]*8
     return c, w
