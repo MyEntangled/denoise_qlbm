@@ -2,6 +2,7 @@ from src.qlbm.lbm_lattices import get_lattice
 from src.qlbm.gate_decomposition.block_encoding import nagy_block_encoding, schlimgen_block_encoding
 
 import numpy as np
+import scipy
 
 def proj_opnorm_ball(A: np.ndarray, radius: float = 1.0):
     """
@@ -12,7 +13,7 @@ def proj_opnorm_ball(A: np.ndarray, radius: float = 1.0):
     return U @ np.diag(s_clipped) @ Vt
 
 
-class LSQCollision:
+class LSCollision:
     def __init__(self, lattice: str):
         c, self.weights = get_lattice(lattice, as_array=True)
         self.vels = c.T
@@ -46,9 +47,9 @@ class LSQCollision:
         H_pinv = np.linalg.pinv(H)
         B_ls = C @ H_pinv  # (Q, Q)
 
-        print("B_ls matrix", B_ls)
-        print(B_ls.round(4))
-        print("svals:", np.linalg.svdvals(B_ls))
+        # print("B_ls matrix", B_ls)
+        # print(B_ls.round(4))
+        # print("svals:", scipy.linalg.svd(B_ls))
 
         # Project onto spectral-norm ball
         B = proj_opnorm_ball(B_ls, radius=radius)
@@ -58,9 +59,9 @@ class LSQCollision:
         error = np.sum(residual * residual, axis=0)  # ||·||_F^2
         avg_loss = np.mean(error)
 
-        print("B matrix")
-        print(B.round(4))
-        print("clipped svals:", np.linalg.svdvals(B))
+        # print("B matrix")
+        # print(B.round(4))
+        # print("clipped svals:", scipy.linalg.svdvals(B))
 
         print("Avg least-square loss", avg_loss)
 
@@ -119,7 +120,7 @@ if __name__ == '__main__':
     target_states = distributions_to_statevectors(F_target, take_sqrt=take_sqrt, normalize=normalize, symmetries=symmetries)
 
 
-    collision = LSQCollision(lattice=lattice)
+    collision = LSCollision(lattice=lattice)
     B_col, _ = collision.train_ls_collision(X=input_states, Y=target_states)
     metrics = collision.test_ls_collision(B_col, input_states, target_states)
 

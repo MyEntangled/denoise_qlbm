@@ -34,7 +34,7 @@ class DenoisingCollision:
         return V
 
 
-    def build_local_chart(self, u0, encoding_type):
+    def build_tangent_space(self, u0, encoding_type):
         """
         Construct the matrix B whose image is the tangent plane of equilibrium distributions at u0.
 
@@ -85,22 +85,22 @@ class DenoisingCollision:
                 ])
 
         B = np.array(components).T
-        return B
+        return B[:,0], B[:,1:]
 
 
     @staticmethod
-    def build_manifold_retraction(local_basis):
+    def tangent_space_projector(tangent_basis):
         """
         Construct the retraction on the equilibrium manifold,
         which is the orthogonal projector onto the tangent plane at reference point.
 
-        :param local_basis: output from build_local_chart
+        :param tangent_basis: a basis of the tangent space, output from build_tangent_space
         :return: retraction operator, shape (Q,Q)
         """
 
-        G = np.linalg.inv(local_basis.T @ local_basis) @ local_basis.T  ## pseudo-inv of B = local_basis
-        L = local_basis @ G
-        return L
+        G = np.linalg.inv(tangent_basis.T @ tangent_basis) @ tangent_basis.T  ## pseudo-inv of tangent basis B
+        Tp = tangent_basis @ G
+        return Tp
 
 
     def build_denoising_op(self, encoding_type, u0, manifold_aware):
@@ -112,19 +112,40 @@ class DenoisingCollision:
         W_sqrt_inv = np.diag(1/sqrt_w)
 
         V = self.build_discrete_hermite_basis()
-        B = self.build_local_chart(u0, encoding_type)
-        L = self.build_manifold_retraction(B)
+        x0, B = self.build_tangent_space(u0, encoding_type)
+        T = self.tangent_space_projector(np.concatenate([x0.reshape(-1,1), B], axis=1))
+        #Tp = self.tangent_space_projector(B)
 
         if encoding_type == 'full':
             if manifold_aware:
-                D = W_sqrt @ V @ L @ V.T @ W_sqrt_inv
+                D = W_sqrt @ V @ T @ V.T @ W_sqrt_inv
             else:
                 D = W_sqrt @ V @ V.T @ W_sqrt_inv
         else:
             if manifold_aware:
-                D = V @ L @ V.T
+                D = V @ T @ V.T
             else:
                 D = V @ V.T
+
+        # if encoding_type == 'full':
+        #     if manifold_aware:
+        #         latent_dim = (self.D + 1)*(self.D + 2) // 2
+        #         D = W_sqrt @ V @ (Tp @ V.T @ W_sqrt_inv + (np.eye(latent_dim) - Tp) @ x0)
+        #     else:
+        #         D = W_sqrt @ V @ V.T @ W_sqrt_inv
+        # else:
+        #     if manifold_aware:
+        #         latent_dim = (self.D + 1) * (self.D + 2) // 2
+        #         Tn = np.eye(latent_dim) - Tp    # projector on normal space
+        #         phi0 = V @ x0
+        #         alpha = np.inner(phi0, phi0)    # estimate of <phi0, phi> by <phi0, phi0>
+        #         P0 = np.outer(phi0, phi0)
+        #         # print(x0)
+        #         # print(phi0)
+        #
+        #         D = V @ (Tp @ V.T + (1./alpha) * Tn @ V.T @ P0)
+        #     else:
+        #         D = V @ V.T
 
         # spec = np.linalg.eigvals(D.T @ D)
         # print("Spectrum", np.min(spec), np.max(spec))
@@ -166,7 +187,7 @@ if __name__ == '__main__':
     cs = 1./np.sqrt(3)
     mean_norm_u = 0.2 * cs
     std_norm_u = 0.2 * cs
-    rel_noise_strength = 0.1  # relative magnitude of thermal/noise fluctuations
+    rel_noise_strength = .1  # relative magnitude of thermal/noise fluctuations
 
     take_sqrt = True
     normalize = True
