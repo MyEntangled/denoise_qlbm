@@ -254,7 +254,7 @@ class QuantumLBMSimulator:
             return np.einsum('ij,...j->...i', U_sys, system_states)
 
         else:
-            NotImplementedError("Only 'full_unitary', 'subsystem_unitary', or 'quantum_gates' operators type are implemented.")
+            NotImplementedError("Only 'full_unitary', 'subsystem_unitary', and 'quantum_gates' operator types are implemented.")
 
 
     def collide(self, states, embed_fn: Callable):
@@ -274,7 +274,7 @@ class QuantumLBMSimulator:
                 system_states = self.apply_system_unitary(U, system_states)
             outputs = system_states
         else:
-            NotImplementedError("Only 'full_unitary' and 'subsystem_unitary' operators type are implemented.")
+            NotImplementedError("Only 'full_unitary', 'subsystem_unitary', and 'quantum_gates' operator types are implemented.")
 
         return outputs
 
