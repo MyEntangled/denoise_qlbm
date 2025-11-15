@@ -127,6 +127,8 @@ class DenoisingCollision:
             else:
                 D = V @ V.T
 
+        ## Try out new idea:
+
         # if encoding_type == 'full':
         #     if manifold_aware:
         #         latent_dim = (self.D + 1)*(self.D + 2) // 2
