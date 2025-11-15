@@ -147,8 +147,9 @@ class DenoisingCollision:
         #     else:
         #         D = V @ V.T
 
-        # spec = np.linalg.eigvals(D.T @ D)
-        # print("Spectrum", np.min(spec), np.max(spec))
+        spec = np.linalg.eigvals(D.T @ D)
+        print("Spectrum", spec.round(4))
+        print(np.linalg.norm(D @ D - D))
         return D
 
 

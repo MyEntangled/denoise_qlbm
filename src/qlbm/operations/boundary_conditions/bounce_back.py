@@ -93,7 +93,7 @@ def bounce_back_obstacles(states: np.ndarray,
     #     tmp = F[obs].copy()  # shape: (num_obstacle_cells, Q)
     #     F[obs] = tmp[..., opp]  # simultaneous reassignment f_q <- f_{opp(q)}
 
-    obstacle_region = F[obs]
+    obstacle_region = F[obs, :]
     F[obs, :] = obstacle_region[:, opp]
 
     return F.reshape(states.shape) if flattened else F

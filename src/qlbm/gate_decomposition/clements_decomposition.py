@@ -150,7 +150,7 @@ def clements_algorithm(U: np.ndarray, atol: float = 1e-8):
                     # print(Uhat.round(3))
 
 
-    # Build D directly from the diagonal
+    # Diagonal D
     diag = np.diagonal(Uhat)
     D = np.diag(diag)
 
@@ -231,4 +231,7 @@ if __name__ == '__main__':
     print("Diagonal", diag)
 
     ops, rel_phases = unitary_to_givens_ops(U_original)
+
+    print(ops)
+    print(rel_phases)
 

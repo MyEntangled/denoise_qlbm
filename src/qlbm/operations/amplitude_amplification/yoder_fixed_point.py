@@ -17,7 +17,7 @@ def chebyshev_T(n, z):
     return out
 
 
-def choose_L(lambda_min, delta):
+def compute_L(lambda_min, delta):
     """Return the smallest odd L such that width <= lambda_min, where
        width w = 1 - 1 / T_{1/L}(1/delta)^2 (success probability).
     """
@@ -44,7 +44,7 @@ def choose_L(lambda_min, delta):
 
 
 # ---------- Phase schedule ----------
-def fixed_point_phases(L, delta):
+def compute_phases(L, delta):
     """Compute alpha_j and beta_j for j=1..l, where L=2l+1, and beta_{l-j+1} = -alpha_j."""
     if L % 2 != 1:
         raise ValueError("L must be odd.")
@@ -167,7 +167,7 @@ def simulate_prefix_probabilities(lmbda, L, delta):
         raise ValueError("lambda must be in (0,1].")
 
     l = (L - 1) // 2
-    alphas, betas = fixed_point_phases(L, delta)
+    alphas, betas = compute_phases(L, delta)
 
     # initial |s> = [sqrt(1-λ), sqrt(λ)]
     state = np.array([np.sqrt(max(0.0, 1.0 - lmbda)), np.sqrt(max(0.0, lmbda))], dtype=complex)
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     # ---------- Demo parameters ----------
     lambda_min = 0.5         # assumed lower bound on λ
     delta = 0.000001 ** 0.5        # choose delta so that δ^2 = 0.1 (for visibility)
-    L = choose_L(lambda_min, delta)
+    L = compute_L(lambda_min, delta)
     l = (L - 1) // 2
 
     print(f"Chosen parameters: lambda_min={lambda_min}, delta={delta}, L={L} (queries = {L-1})")
@@ -224,6 +224,8 @@ if __name__ == "__main__":
     plt.plot(lmbdas, P_sim, label="Simulated endpoint")
     plt.plot(lmbdas, P_th, linestyle="--", label="Theory endpoint")
     plt.axhline(1.0 - delta**2, linestyle=":", label="Guarantee 1 - δ²")
+    print(1. - delta**2)
+    print(P_th)
     plt.xlabel("λ")
     plt.ylabel("Success probability at designed endpoint")
     plt.title(f"Fixed-point Grover (L={L}, l={l}, queries={L-1})")

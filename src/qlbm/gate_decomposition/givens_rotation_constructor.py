@@ -34,25 +34,17 @@ def get_givens_angle(G: np.ndarray, atol: float = 1e-8):
     theta = float(np.arctan2(s, c))
     return theta
 
-def ops_to_rots(givens_ops):
-    givens_rots = [(m,n,get_givens_angle(op)) for m,n,op in givens_ops]
-    return givens_rots
 
-def rots_to_mats(givens_rots, N: int = None):
-    givens_mats = []
+def givens_rot_to_mat(N: int, m: int, n: int, theta: float):
+    """Convert Givens rotations to matrices."""
 
-    for (m,n,theta) in givens_rots:
-        c,s = np.cos(theta), np.sin(theta)
-        G = np.array([[c, -s], [s,  c]])
+    c, s = np.cos(theta), np.sin(theta)
+    G = np.array([[c, -s], [s,  c]])
 
-        if N is not None:
-            G_embed = np.eye(N, dtype=float)
-            G_embed[np.ix_([m, n], [m, n])] = G
-            givens_mats.append(G_embed)
-        else:
-            givens_mats.append(G)
+    G_embed = np.eye(N, dtype=float)
+    G_embed[np.ix_([m, n], [m, n])] = G
 
-    return givens_mats
+    return G_embed
 
 
 def check_decomposition(givens_rots, rel_phases, U: np.ndarray, atol: float = 1e-8):
@@ -67,7 +59,7 @@ def check_decomposition(givens_rots, rel_phases, U: np.ndarray, atol: float = 1e
     if U.shape[0] != N:
         raise ValueError(f"U must have size {N} x {N}.")
 
-    givens_mats = rots_to_mats(givens_rots, N)
+    givens_mats = [givens_rot_to_mat(N, m, n, theta) for (m, n, theta) in givens_rots]
 
     U_rec = np.eye(N, dtype=float)
     for M in givens_mats:
@@ -98,7 +90,7 @@ if __name__ == "__main__":
     givens_ops, rel_phases = unitary_to_givens_ops(U_original)
 
     # 3. Convert to rotation form
-    givens_rots = ops_to_rots(givens_ops)
+    givens_rots = [(m,n,get_givens_angle(op)) for m,n,op in givens_ops]
     print(givens_rots)
 
     # 4. Verify the decomposition

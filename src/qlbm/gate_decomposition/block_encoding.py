@@ -1,6 +1,4 @@
 from src.qlbm.operations.collision.denoiser import DenoisingCollision
-from src.qlbm.gate_decomposition.clements_decomposition import unitary_to_givens_ops
-from src.qlbm.gate_decomposition.givens_rotation_constructor import ops_to_rots
 
 import numpy as np
 import scipy
@@ -52,8 +50,6 @@ def nagy_block_encoding(A, rescale=True):
     precision_error = np.linalg.norm(U[:m, :n] - B)
     if precision_error > 1e-8:
         raise ValueError(f"Top-left block of U deviates from A/α (‖U[:m,:n] - A/α‖={precision_error:.2e})")
-
-
 
     return U, alpha
 
@@ -133,12 +129,6 @@ if __name__ == "__main__":
 
     D = denoiser.build_denoising_op(encoding_type, np.zeros(2), manifold_aware)
     print(D)
-
-    # U, alpha = nagy_block_encoding(D, rescale=True)
-    # print(U.round(4))
-    #
-    # givens_ops, rel_phases = unitary_to_givens_ops(U)
-    # givens_rots = ops_to_rots(givens_ops)
 
 
     U_sch, alpha, U_svd, USigma, Vh_svd = schlimgen_block_encoding(D, rescale=True)
