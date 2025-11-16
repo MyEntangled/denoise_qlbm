@@ -125,9 +125,10 @@ if __name__ == "__main__":
 
     denoiser = DenoisingCollision(lattice=lattice)
     encoding_type = 'sqrt' if take_sqrt else 'full'
+    eq_dist_deg = 1
     manifold_aware = True
 
-    D = denoiser.build_denoising_op(encoding_type, np.zeros(2), manifold_aware)
+    D = denoiser.build_denoising_op(encoding_type, eq_dist_deg, np.zeros(2), manifold_aware)
     print(D)
 
 

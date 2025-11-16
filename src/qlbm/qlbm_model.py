@@ -29,12 +29,14 @@ class QuantumLBMSimulator:
                  grid_size: tuple,
                  encoding_type: str,
                  collision_model_type: str,
+                 eq_dist_degree: int,
                  apply_operators_as: str = 'full_unitary'):
 
         self.lattice = lattice
         self.c, self.w = get_lattice(lattice, True)
         self.Q, self.d = self.c.shape
 
+        assert len(grid_size) == self.d, f"Grid size dimension {len(grid_size)} does not match lattice dimension {self.d}."
         self.grid_size = grid_size # (nZ, nY, nX) for 3D, (nY, nX) for 2D
 
         assert encoding_type in ['sqrt', 'full'], "encoding_type must be 'sqrt' or 'full'."
@@ -44,10 +46,14 @@ class QuantumLBMSimulator:
             raise ValueError("collision_model_type must be 'denoising' or 'least-square'.")
         self.collision_model_type = collision_model_type
 
+        assert eq_dist_degree in [1, 2], "eq_dist_degree must be 1 or 2."
+        self.eq_dist_degree = eq_dist_degree
+
         if collision_model_type == 'denoising':
-            self.collision_model = DenoisingCollision(lattice)
+            self.collision_model = DenoisingCollision(lattice, eq_dist_degree)
         elif collision_model_type == 'least-square':
             self.collision_model = LSCollision(lattice)
+
 
 
         self.U_col = None  # full collision unitary
@@ -283,18 +289,18 @@ class QuantumLBMSimulator:
         # Implement streaming step
         return streaming_periodic(states, lattice=self.lattice, dims=self.grid_size, applied_region=applied_region)
 
-    def apply_boundary_conditions(self, states, obstacles):
+    def apply_boundary_conditions(self, states, obstacles, u_obstacles):
         # Implement boundary conditions
-        return bounce_back_obstacles(states, obstacles, lattice=self.lattice, dims=self.grid_size)
+        return bounce_back_obstacles(states, obstacles, u_obstacles, lattice=self.lattice, dims=self.grid_size)
 
 
-    def step(self, states: np.ndarray, obstacles: np.ndarray, embed_fn: Callable) -> np.ndarray:
+    def step(self, states: np.ndarray, obstacles: np.ndarray, u_obstacles: np.ndarray|None, embed_fn: Callable):
         # Streaming
         states = self.stream(states)
         #print("After streaming:", np.linalg.norm(states[obstacles]))
 
         # Boundary conditions: bounce-back
-        states = self.apply_boundary_conditions(states, obstacles)
+        states = self.apply_boundary_conditions(states, obstacles, u_obstacles)
         states = self.stream(states, applied_region=obstacles)
 
         # Collision
@@ -308,7 +314,13 @@ class QuantumLBMSimulator:
 
         return states.real
 
-    def simulate(self, F_init: np.ndarray, obstacles: np.ndarray, num_steps: int, show_every: int = 20):
+    def simulate(self,
+                 F_init: np.ndarray,
+                 obstacles: np.ndarray,
+                 u_obstacles: np.ndarray | None,
+                 num_steps: int,
+                 show_every: int = 20):
+
         multiply_ket0 = lambda psi: np.concatenate([psi, np.zeros_like(psi)], axis=-1)  # function |psi> --> |0>|psi>
 
         if self.encoding_type == 'sqrt':
@@ -323,7 +335,7 @@ class QuantumLBMSimulator:
         print("Initial norm:", init_norm)
 
         for i in range(num_steps):
-            states = self.step(states, obstacles=obstacles, embed_fn=multiply_ket0)
+            states = self.step(states, obstacles=obstacles, u_obstacles=u_obstacles, embed_fn=multiply_ket0)
             if i % show_every == 0:
                 print("Iteration", i)
                 self.plot_field(init_norm * states, obstacles)
@@ -359,18 +371,19 @@ class QuantumLBMSimulator:
 
 
 if __name__ == "__main__":
-    from src.qlbm.domain_settings import axial_flow
+    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow
 
     # Example usage of QLBMSimulator
-    lattice = "D2Q5"
-    grid_size = (400, 100)  # 2D grid
+    lattice = "D2Q9"
+    grid_size = (401, 101)  # 2D grid
     encoding_type = 'sqrt'
     collision_model_type = 'denoising'
+    eq_dist_deg = 2
     apply_operators_as = 'full_unitary'  # 'full_unitary' or 'subsystem_unitary' or 'quantum_gates'
 
 
-    denoise_qlbm = QuantumLBMSimulator(lattice, grid_size, encoding_type, collision_model_type, apply_operators_as)
-    denoise_qlbm.init_collision_operator(u0=[0.1,0.], seed=0)
+    denoise_qlbm = QuantumLBMSimulator(lattice, grid_size, encoding_type, collision_model_type, eq_dist_deg, apply_operators_as)
+    denoise_qlbm.init_collision_operator(u0=[0.15,0.], seed=0)
 
     # A_denoise = denoise_qlbm.U_col[:denoise_qlbm.Q, :denoise_qlbm.Q].real
     # s_denoise = np.linalg.svd(A_denoise, compute_uv=False)
@@ -385,13 +398,12 @@ if __name__ == "__main__":
         #('box', (Ny * 0.7, Nx * 0.6), (14, 16)),
     ]
 
-    F, solid, c, w = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
+    #F, solid = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
+    #F, solid = gaussian_hill.setup_domain((Ny, Nx), 'D2Q9')
+    F, solid, u_solid = couette_flow.setup_domain((Ny, Nx), 'D2Q9')
 
-    F = np.ones((Ny, Nx, denoise_qlbm.Q)) + 0.01 * np.random.randn(Ny, Nx, denoise_qlbm.Q)
-    ## The fluid is initially flowing to the right
-    F[:, :, 1] = 2.3  ## Index 3 is of "to-the-right" velocity
 
-    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, num_steps=10000)
+    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, u_obstacles=None, num_steps=10000)
     denoise_output_states = denoise_output_states.reshape(*grid_size, denoise_qlbm.Q)
 
 

@@ -19,6 +19,7 @@ def _opposites_from_c(c: np.ndarray) -> np.ndarray:
 
 def bounce_back_obstacles(states: np.ndarray,
                           obstacle: np.ndarray,
+                          u_obstacle: np.ndarray | None,
                           lattice: str,
                           dims=None,
                           inplace: bool = False) -> np.ndarray:
@@ -44,7 +45,7 @@ def bounce_back_obstacles(states: np.ndarray,
     np.ndarray
         States after bounce-back, same shape as `states`.
     """
-    c, _ = get_lattice(lattice, as_array=True)   # c: (Q, d)
+    c, w = get_lattice(lattice, as_array=True)   # c: (Q, d)
     Q, d = c.shape
     opp = _opposites_from_c(c)
 
@@ -89,12 +90,38 @@ def bounce_back_obstacles(states: np.ndarray,
         # Nothing to do
         return F.reshape(states.shape) if flattened else F
 
-    # for q in range(Q):
-    #     tmp = F[obs].copy()  # shape: (num_obstacle_cells, Q)
-    #     F[obs] = tmp[..., opp]  # simultaneous reassignment f_q <- f_{opp(q)}
-
     obstacle_region = F[obs, :]
     F[obs, :] = obstacle_region[:, opp]
+
+    # --- moving obstacle correction ---
+    if u_obstacle is not None:
+        assert u_obstacle.ndim >= 1, "u_obstacle must have at least one dimension (the velocity components)."
+        u_dim = u_obstacle.ndim - 1  # number of spatial dimensions in u_obstacle
+
+        if u_obstacle.shape[:u_dim] == grid_shape:
+            u_obstacle_grid = u_obstacle
+        elif u_dim == 1 and np.prod(u_obstacle.shape[:1]) == np.prod(grid_shape):
+            rest = u_obstacle.shape[1:]
+            u_obstacle_grid = u_obstacle.reshape(grid_shape, *rest)
+        else:
+            raise ValueError(
+                f"Obstacle velocity shape {u_obstacle[:-1].shape} is incompatible with grid {grid_shape}."
+            )
+
+        u_obs = u_obstacle_grid
+
+
+        # u_obs: (*grid_size, d), take only obstacle nodes -> (Nobs, d)
+        u_wall = u_obs[obs, :]  # velocities of the solid nodes
+
+        # cu: (Nobs, Q) = u_wall · c_i
+        # c: (Q, d), so take transpose for matmul
+        cu = u_wall @ c.T
+
+        # Add moving-wall correction: f_i += 2 * w_i * rho0 * (c_i · u_wall) / cs^2
+        rho0 = 1.
+        cs2_inv = 3.
+        F[obs, :] += (2.0 * rho0 * cs2_inv * cu * w[np.newaxis,:])  # w broadcasts to (Nobs, Q)
 
     return F.reshape(states.shape) if flattened else F
 

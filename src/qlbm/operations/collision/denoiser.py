@@ -5,10 +5,13 @@ from itertools import combinations
 
 
 class DenoisingCollision:
-    def __init__(self, lattice: str):
+    def __init__(self, lattice: str, eq_dist_deg: int):
         c, self.weights = get_lattice(lattice, as_array=True)
         self.vels = c.T
         self.Q, self.D = c.shape
+
+        assert eq_dist_deg in [1, 2], "eq_dist_deg must be 1 or 2."
+        self.eq_dist_deg = eq_dist_deg
 
         self.cs = 1./np.sqrt(3)  # speed of sound
 
@@ -25,21 +28,23 @@ class DenoisingCollision:
         for i in range(self.D):
             V = np.concatenate([V, (self.vels[i] * sqrt_w / self.cs).reshape(-1,1)], axis=1)
 
-        for i in range(self.D):
-            V = np.concatenate([V, ((self.vels[i]*self.vels[i] - cs2)*sqrt_w / (cs2 * np.sqrt(2))).reshape(-1,1)], axis=1)
+        if self.eq_dist_deg == 2:
+            for i in range(self.D):
+                V = np.concatenate([V, ((self.vels[i]*self.vels[i] - cs2)*sqrt_w / (cs2 * np.sqrt(2))).reshape(-1,1)], axis=1)
 
-        for vel_a, vel_b in combinations(self.vels, 2):
-            V = np.concatenate([V, ((vel_a * vel_b)*sqrt_w / cs2).reshape(-1,1)], axis=1)
+            for vel_a, vel_b in combinations(self.vels, 2):
+                V = np.concatenate([V, ((vel_a * vel_b)*sqrt_w / cs2).reshape(-1,1)], axis=1)
 
         return V
 
 
-    def build_tangent_space(self, u0, encoding_type):
+    def build_tangent_space(self, u0, encoding_type: str):
         """
         Construct the matrix B whose image is the tangent plane of equilibrium distributions at u0.
 
         :param u0: Reference point
         :param encoding_type: 'full' or 'sqrt'
+        :param eq_dist_deg: 1 or 2, degree of equilibrium distribution polynomial
         :return: B = [b(u0), b_\alpha (u0) \forall \alpha], shape (Q, D+1)
         """
         assert encoding_type in ['full', 'sqrt'], "encoding_type must be full (f) or sqrt (f^{0.5})."
@@ -49,40 +54,70 @@ class DenoisingCollision:
         components = []
 
         if encoding_type == 'full':
-            ## Position b(u0)
-            components.append([
-                1,
-                *[x / self.cs for x in u0],
-                *[x*x / (cs2 * np.sqrt(2)) for x in u0],
-                *[x*y / cs2 for x,y in combinations(u0,2)]
-            ])
-
-            ## Derivative b_i(u0) for all directions i
-            for i in range(self.D):
+            if self.eq_dist_deg == 2:
+                ## Position b(u0)
                 components.append([
-                    0,
-                    *[1/self.cs if p == i else 0 for p in range(self.D)],
-                    *[2*u0[p] / (cs2 * np.sqrt(2)) if p == i else 0 for p in range(self.D)],
-                    *[(u0[q]/cs2 if p == i else u0[p]/cs2 if q == i else 0) for p, q in combinations(range(len(u0)), 2)]
+                    1,
+                    *[x / self.cs for x in u0],
+                    *[x*x / (cs2 * np.sqrt(2)) for x in u0],
+                    *[x*y / cs2 for x,y in combinations(u0,2)]
                 ])
+
+                ## Derivative b_i(u0) for all directions i
+                for i in range(self.D):
+                    components.append([
+                        0,
+                        *[1/self.cs if p == i else 0 for p in range(self.D)],
+                        *[2*u0[p] / (cs2 * np.sqrt(2)) if p == i else 0 for p in range(self.D)],
+                        *[(u0[q]/cs2 if p == i else u0[p]/cs2 if q == i else 0) for p, q in combinations(range(len(u0)), 2)]
+                    ])
+
+            else:   # eq_dist_deg == 1
+                ## Position b(u0)
+                components.append([
+                    1,
+                    *[x / self.cs for x in u0]
+                ])
+
+                ## Derivative b_i(u0) for all directions i
+                for i in range(self.D):
+                    components.append([
+                        0,
+                        *[1/self.cs if p == i else 0 for p in range(self.D)]
+                    ])
 
         else:   # encoding_type == 'sqrt'
-            ## Position b(u0)
-            components.append([
-                1 - np.sum(u0 * u0) / (8*cs2),
-                *[x / (2*self.cs) for x in u0],
-                *[x*x / (4*cs2 * np.sqrt(2)) for x in u0],
-                *[x*y / (4*cs2) for x,y in combinations(u0,2)]
-            ])
-
-            ## Derivative b_i(u0) for all directions i
-            for i in range(self.D):
+            if self.eq_dist_deg == 2:
+                ## Position b(u0)
                 components.append([
-                    -u0[i] / (4*cs2),
-                    *[1/(2*self.cs) if p == i else 0 for p in range(self.D)],
-                    *[u0[p] / (2*cs2 * np.sqrt(2)) if p == i else 0 for p in range(self.D)],
-                    *[(u0[q]/(4*cs2) if p == i else u0[p]/(4*cs2) if q == i else 0) for p, q in combinations(range(len(u0)), 2)]
+                    1 - np.sum(u0 * u0) / (8*cs2),
+                    *[x / (2*self.cs) for x in u0],
+                    *[x*x / (4*cs2 * np.sqrt(2)) for x in u0],
+                    *[x*y / (4*cs2) for x,y in combinations(u0,2)]
                 ])
+
+                ## Derivative b_i(u0) for all directions i
+                for i in range(self.D):
+                    components.append([
+                        -u0[i] / (4*cs2),
+                        *[1/(2*self.cs) if p == i else 0 for p in range(self.D)],
+                        *[u0[p] / (2*cs2 * np.sqrt(2)) if p == i else 0 for p in range(self.D)],
+                        *[(u0[q]/(4*cs2) if p == i else u0[p]/(4*cs2) if q == i else 0) for p, q in combinations(range(len(u0)), 2)]
+                    ])
+
+            else:   # eq_dist_deg == 1
+                ## Position b(u0)
+                components.append([
+                    1,
+                    *[x / (2*self.cs) for x in u0]
+                ])
+
+                ## Derivative b_i(u0) for all directions i
+                for i in range(self.D):
+                    components.append([
+                        0,
+                        *[1/(2*self.cs) if p == i else 0 for p in range(self.D)]
+                    ])
 
         B = np.array(components).T
         return B[:,0], B[:,1:]
@@ -112,6 +147,7 @@ class DenoisingCollision:
         W_sqrt_inv = np.diag(1/sqrt_w)
 
         V = self.build_discrete_hermite_basis()
+        print("shape V", V.shape)
         x0, B = self.build_tangent_space(u0, encoding_type)
         T = self.tangent_space_projector(np.concatenate([x0.reshape(-1,1), B], axis=1))
         #Tp = self.tangent_space_projector(B)
@@ -180,7 +216,7 @@ if __name__ == '__main__':
     from src.qlbm.data_generation.create_states import distributions_to_statevectors
     from src.qlbm.lbm_symmetries import get_symmetry
 
-    rng = np.random.default_rng(123)
+    rng = np.random.default_rng(None)
 
     # Parameters
     n_samples = 50000
@@ -190,7 +226,7 @@ if __name__ == '__main__':
     cs = 1./np.sqrt(3)
     mean_norm_u = 0.2 * cs
     std_norm_u = 0.2 * cs
-    rel_noise_strength = .1  # relative magnitude of thermal/noise fluctuations
+    rel_noise_strength = .3  # relative magnitude of thermal/noise fluctuations
 
     take_sqrt = True
     normalize = True
@@ -213,7 +249,7 @@ if __name__ == '__main__':
     target_states = distributions_to_statevectors(F_target, take_sqrt=take_sqrt, normalize=normalize, symmetries=symmetries)
 
 
-    denoiser = DenoisingCollision(lattice=lattice)
+    denoiser = DenoisingCollision(lattice=lattice, eq_dist_deg=1)
     encoding_type = 'sqrt' if take_sqrt else 'full'
     manifold_aware = True
 

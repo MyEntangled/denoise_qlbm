@@ -76,9 +76,9 @@ def setup_domain(domain_dims, lattice, obstacles=(), *,
             raise ValueError(f"Unknown obstacle type: {kind}")
 
 
-    F[solid, :] = 0.0  # zero out distributions inside solid obstacles
+    F[solid] = 0.  # zero out distributions inside solid obstacles
 
-    return F, solid, c, w
+    return F, solid
 
 if __name__ == "__main__":
     # 2D example
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         ('round', (Ny / 2, Nx / 4), 3),
         ('box', (Ny * 0.7, Nx * 0.6), (4, 6)),
     ]
-    F, solid, c, w = setup_domain((Ny, Nx), 'D2Q9', obstacles,
+    F, solid = setup_domain((Ny, Nx), 'D2Q9', obstacles,
                                   flow_axis=1, flow_boost=2.3)
 
     solid = np.asarray(solid, dtype=int)
