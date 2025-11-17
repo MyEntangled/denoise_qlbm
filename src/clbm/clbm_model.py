@@ -33,6 +33,7 @@ class ClassicalLBMSimulator:
         if u_obstacles is not None:
             # u_obs: (*grid_size, d), take only obstacle nodes -> (Nobs, d)
             u_wall = u_obstacles[obstacles, :]  # velocities of the solid nodes
+            print("u_wall:", np.linalg.norm(u_wall))
 
             # cu: (Nobs, Q) = u_wall · c_i
             # c: (Q, d), so take transpose for matmul
@@ -118,7 +119,7 @@ class ClassicalLBMSimulator:
         return F
 
 if __name__ == "__main__":
-    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow
+    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow, cavity_flow
 
 
     # Set up LBM lattice
@@ -141,6 +142,7 @@ if __name__ == "__main__":
     #F, solid = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
     #F, solid = gaussian_hill.setup_domain((Ny, Nx), 'D2Q9')
     F, solid, u_solid = couette_flow.setup_domain((Ny, Nx), 'D2Q9')
+    #F, solid, u_solid = cavity_flow.setup_domain((Ny, Nx), 'D2Q9')
 
     print("F shape:", F.shape)
 

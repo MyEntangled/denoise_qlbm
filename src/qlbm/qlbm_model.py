@@ -371,7 +371,7 @@ class QuantumLBMSimulator:
 
 
 if __name__ == "__main__":
-    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow
+    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow, cavity_flow
 
     # Example usage of QLBMSimulator
     lattice = "D2Q9"
@@ -383,7 +383,7 @@ if __name__ == "__main__":
 
 
     denoise_qlbm = QuantumLBMSimulator(lattice, grid_size, encoding_type, collision_model_type, eq_dist_deg, apply_operators_as)
-    denoise_qlbm.init_collision_operator(u0=[0.15,0.], seed=0)
+    denoise_qlbm.init_collision_operator(u0=[0.2,0.], seed=0)
 
     # A_denoise = denoise_qlbm.U_col[:denoise_qlbm.Q, :denoise_qlbm.Q].real
     # s_denoise = np.linalg.svd(A_denoise, compute_uv=False)
@@ -401,9 +401,10 @@ if __name__ == "__main__":
     #F, solid = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
     #F, solid = gaussian_hill.setup_domain((Ny, Nx), 'D2Q9')
     F, solid, u_solid = couette_flow.setup_domain((Ny, Nx), 'D2Q9')
+    #F, solid, u_solid = cavity_flow.setup_domain((Ny, Nx), 'D2Q9')
 
 
-    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, u_obstacles=None, num_steps=10000)
+    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, u_obstacles=u_solid, num_steps=10000)
     denoise_output_states = denoise_output_states.reshape(*grid_size, denoise_qlbm.Q)
 
 

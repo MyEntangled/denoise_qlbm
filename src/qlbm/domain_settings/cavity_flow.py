@@ -25,17 +25,21 @@ def setup_domain(domain_dims, lattice, u_top=0.1, base_density=1.0, noise_level=
     solid = np.zeros((*domain_dims,), dtype=bool)
     solid[0, :] = True     # bottom wall
     solid[-1, :] = True     # top wall
+    solid[:, 0] = True     # left wall
+    solid[:, -1] = True     # right wall
 
     # --- Moving top wall boundary condition ---
     u_solid = np.zeros((*domain_dims, d))
     u_solid[-1, :, 0] = u_top  # top wall moves with velocity (u_top, 0)
 
+
     # # Boundary velocity for top moving wall
     u = np.zeros((*domain_dims, d))
     u[..., 0] = 0.2  # initial flow in x-direction
     # u[..., 1] = 0.1  # small initial flow in y-direction
-    # u[-1, :, 0] = u_top # top wall moves with velocity (u_top, 0)
-    # u[-1, :, 1] = 0.0
+    u[-1, :, 0] = u_top # top wall moves with velocity (u_top, 0)
+    u[-1, :, 1] = 0.0
+
 
 
     # Compute equilibrium
@@ -44,10 +48,3 @@ def setup_domain(domain_dims, lattice, u_top=0.1, base_density=1.0, noise_level=
     F[solid] = 0.
 
     return F, solid, u_solid
-
-if __name__ == "__main__":
-    grid_size = (5, 3)
-    F, solid, u_solid = setup_domain(grid_size, 'D2Q9', u_top=0.1)
-    for row in solid:
-        print([int(v) for v in row])
-

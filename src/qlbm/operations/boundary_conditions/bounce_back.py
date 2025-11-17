@@ -113,7 +113,7 @@ def bounce_back_obstacles(states: np.ndarray,
 
         # u_obs: (*grid_size, d), take only obstacle nodes -> (Nobs, d)
         u_wall = u_obs[obs, :]  # velocities of the solid nodes
-
+        print("u_wall:", np.linalg.norm(u_wall))
         # cu: (Nobs, Q) = u_wall · c_i
         # c: (Q, d), so take transpose for matmul
         cu = u_wall @ c.T
