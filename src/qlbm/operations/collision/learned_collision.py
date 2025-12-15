@@ -1,5 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
-from src.qlbm.gate_decomposition.block_encoding import nagy_block_encoding, schlimgen_block_encoding
+from src.lattices.lbm_lattices import get_lattice
 
 import numpy as np
 import jax.numpy as jnp
@@ -237,10 +236,10 @@ class LearnedCollision:
 
 
 if __name__ == '__main__':
-    from src.qlbm.data_generation.sample_distribution import sample_low_mach_data, sample_uniform_data
+    from src.qlbm.data_generation.sample_distribution import sample_low_mach_data
     from src.qlbm.data_generation.create_states import distributions_to_statevectors
     from src.qlbm.data_generation.helper import split_train_test
-    from src.qlbm.lbm_symmetries import get_symmetry
+    from src.lattices.lbm_symmetries import get_symmetry
 
     # --- choose lattice + data spec ---
     lattice = "D2Q9"

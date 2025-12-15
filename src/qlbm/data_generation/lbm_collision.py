@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 import numpy as np
 
 
@@ -32,7 +32,7 @@ import numpy as np
 #     )
 #     return F_eq  # (B,Q)
 
-def get_equilibrium(rho: np.ndarray, u: np.ndarray, lattice: str, eq_dist_deg: int) -> np.ndarray:
+def get_equilibrium(rho: np.ndarray, u: np.ndarray, lattice: str) -> np.ndarray:
     """
     Maxwell–Boltzmann equilibrium:
         1st-order: f_i^eq = w_i * rho * [ 1 + (c_i·u)/cs^2 ]
@@ -46,8 +46,6 @@ def get_equilibrium(rho: np.ndarray, u: np.ndarray, lattice: str, eq_dist_deg: i
     Returns:
         F_eq: (..., Q)
     """
-    assert eq_dist_deg in [1,2], "eq_dist_deg must be 1 or 2."
-
     c, w = get_lattice(lattice, as_array=True)   # c: (Q,d), w: (Q,)
 
     cs2_inv = 3.
@@ -78,12 +76,9 @@ def get_equilibrium(rho: np.ndarray, u: np.ndarray, lattice: str, eq_dist_deg: i
     w_b = w.reshape(w_shape)
 
     # rho[..., None] has shape (..., 1), broadcast with w_b (..., Q) ⇒ (..., Q)
-    if eq_dist_deg == 1:
-        F_eq = w_b * rho[..., None] * (1.0 + cu * cs2_inv)
-    else:   # eq_dist_deg == 2
-        F_eq = w_b * rho[..., None] * (
-            1.0 + cu * cs2_inv + 0.5 * (cu**2) * cs4_inv - 0.5 * uu * cs2_inv
-        )
+    F_eq = w_b * rho[..., None] * (
+        1.0 + cu * cs2_inv + 0.5 * (cu**2) * cs4_inv - 0.5 * uu * cs2_inv
+    )
     return F_eq
 
 

@@ -1,7 +1,7 @@
-from src.qlbm.lbm_symmetries import permute_by_all_symmetries
+from src.lattices.lbm_symmetries import permute_by_all_symmetries
 
 import numpy as np
-import jax.numpy as jnp
+
 
 def distributions_to_statevectors(F,
                                   take_sqrt: bool = False,

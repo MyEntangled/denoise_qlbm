@@ -64,7 +64,7 @@ def isotropy_report(c, w, tol=1e-14):
 
 
 if __name__ == '__main__':
-    from src.qlbm.lbm_lattices import d2q9, d3q15, d3q19, d3q27, get_lattice
+    from src.lattices.lbm_lattices import d3q19, d3q27, get_lattice
 
     lattices = {
         "D2Q9": get_lattice('d2q9'),

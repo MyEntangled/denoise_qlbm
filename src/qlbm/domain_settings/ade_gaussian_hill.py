@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 from src.qlbm.data_generation.sample_distribution import get_equilibrium
 
 import numpy as np

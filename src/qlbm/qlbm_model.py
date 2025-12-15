@@ -1,23 +1,22 @@
-from src.qlbm.lbm_lattices import get_lattice
-from src.qlbm.lbm_symmetries import get_symmetry
+from src.lattices.lbm_lattices import get_lattice
+from src.lattices.lbm_symmetries import get_symmetry
 from src.qlbm.operations.boundary_conditions.bounce_back import bounce_back_obstacles
 
 from src.qlbm.operations.streaming.streaming_by_assignment import streaming_periodic
 from src.qlbm.operations.collision.denoiser import DenoisingCollision
 from src.qlbm.operations.collision.ls_collision import LSCollision
-from src.qlbm.operations.collision.learned_collision import LearnedCollision
 
 from src.qlbm.data_generation.sample_distribution import sample_low_mach_data
 from src.qlbm.data_generation.create_states import distributions_to_statevectors
 
 from src.qlbm.gate_decomposition.block_encoding import schlimgen_block_encoding
-from src.qlbm.gate_decomposition.cossin_decomposition import csd_equal_blocks
 
 from src.qlbm.gate_decomposition.clements_decomposition import unitary_to_givens_ops
 from src.qlbm.gate_decomposition.givens_rotation_constructor import get_givens_angle, givens_rot_to_mat
 
 import numpy as np
-from typing import Callable
+from numpy.typing import NDArray
+from typing import Callable, Union, Sequence
 import matplotlib.pyplot as plt
 
 ### Simulator class for Quantum Lattice Boltzmann Method
@@ -29,7 +28,7 @@ class QuantumLBMSimulator:
                  grid_size: tuple,
                  encoding_type: str,
                  collision_model_type: str,
-                 eq_dist_degree: int,
+                 is_scalar_field: bool,
                  apply_operators_as: str = 'full_unitary'):
 
         self.lattice = lattice
@@ -46,15 +45,12 @@ class QuantumLBMSimulator:
             raise ValueError("collision_model_type must be 'denoising' or 'least-square'.")
         self.collision_model_type = collision_model_type
 
-        assert eq_dist_degree in [1, 2], "eq_dist_degree must be 1 or 2."
-        self.eq_dist_degree = eq_dist_degree
+        self.is_scalar_field = is_scalar_field
 
         if collision_model_type == 'denoising':
-            self.collision_model = DenoisingCollision(lattice, eq_dist_degree)
+            self.collision_model = DenoisingCollision(lattice, is_scalar_field)
         elif collision_model_type == 'least-square':
             self.collision_model = LSCollision(lattice)
-
-
 
         self.U_col = None  # full collision unitary
         self.U_col_op_seq = None # to-be-realized sequence of high-level operators on two registers, ancilla & system
@@ -156,61 +152,35 @@ class QuantumLBMSimulator:
 
         return U_col, op_seq, gate_seq
 
-    def _init_ls_collision_(self, omega, seed: int = None):
-        rng = np.random.default_rng(seed)
-
-        # Sample data & convert to statevectors
-        F, F_target = self._sample_distributions_(num_samples=25000, omega=omega, rng=rng)
-        X, Y = self._prepare_statevectors_(F, F_target, True)
-
-        B, _ = self.collision_model.train_ls_collision(X, Y)
-
-        # Schlimgen block encoding of B
-        # Full unitary: U_col = (H ⊗ I) (I ⊗ U) U_Σ (I ⊗ V†) (H ⊗ I)
-        U_col, alpha, U_svd, USigma, Vh_svd = schlimgen_block_encoding(B, rescale=True)
-        self.U_col = U_col
-
-        Ia, Id = np.eye(2), np.eye(self.Q)
-        H = np.array([[1, 1], [1,-1]]) / np.sqrt(2)
-
-        op_seq = [(H, Id), (Ia, Vh_svd), (USigma,), (Ia, U_svd), (H, Id)]
-        self.U_col_op_seq = op_seq
-
-        # Define gate sequence
-        gate_seq = [(H, Id)]
-        gate_seq.extend(self._convert_operator_to_gates_(Vh_svd))
-        gate_seq.append((USigma,))
-        gate_seq.extend(self._convert_operator_to_gates_(U_svd))
-        gate_seq.append((H, Id))
-        self.U_col_gate_seq = gate_seq
-
-        return U_col, op_seq, gate_seq
-
-    # def _init_learned_collision_(self, omega: float, seed: int = None):
-    #     ancilla = 'zero'
-    #     r = 1  # # of ancilla qubits
+    # def _init_ls_collision_(self, omega, seed: int = None):
     #     rng = np.random.default_rng(seed)
     #
     #     # Sample data & convert to statevectors
     #     F, F_target = self._sample_distributions_(num_samples=25000, omega=omega, rng=rng)
     #     X, Y = self._prepare_statevectors_(F, F_target, True)
     #
-    #     # Train collision operator (don't need to test here, if want to test use learned_collision.py)
-    #     U_col, _ = self.collision_model.train_collision_unitary(
-    #         X, Y, r=r,
-    #         ancilla=ancilla,
-    #         eta=0.5, mu=1.0, eps=0.5,
-    #         max_steps=5000, tol=1e-9,
-    #         rng=rng, verbose=True
-    #     )
+    #     B, _ = self.collision_model.train_ls_collision(X, Y)
     #
-    #     # Cosine-Sine decomposition.
-    #     (U1, U2), theta, (V1H, V2H) = csd_equal_blocks(U_col)
-    #     C = np.diag(np.cos(theta))
-    #     S = np.diag(np.sin(theta))
-    #     middle = np.block([[C, -S], [S, C]])
-    #     seq = [(V1H, V2H), middle, (U1, U2)]
-    #     return U_col, seq
+    #     # Schlimgen block encoding of B
+    #     # Full unitary: U_col = (H ⊗ I) (I ⊗ U) U_Σ (I ⊗ V†) (H ⊗ I)
+    #     U_col, alpha, U_svd, USigma, Vh_svd = schlimgen_block_encoding(B, rescale=True)
+    #     self.U_col = U_col
+    #
+    #     Ia, Id = np.eye(2), np.eye(self.Q)
+    #     H = np.array([[1, 1], [1,-1]]) / np.sqrt(2)
+    #
+    #     op_seq = [(H, Id), (Ia, Vh_svd), (USigma,), (Ia, U_svd), (H, Id)]
+    #     self.U_col_op_seq = op_seq
+    #
+    #     # Define gate sequence
+    #     gate_seq = [(H, Id)]
+    #     gate_seq.extend(self._convert_operator_to_gates_(Vh_svd))
+    #     gate_seq.append((USigma,))
+    #     gate_seq.extend(self._convert_operator_to_gates_(U_svd))
+    #     gate_seq.append((H, Id))
+    #     self.U_col_gate_seq = gate_seq
+    #
+    #     return U_col, op_seq, gate_seq
 
     def init_collision_operator(self, u0 = None, seed: int = None):
 
@@ -220,8 +190,8 @@ class QuantumLBMSimulator:
                 raise ValueError("'u0' must be provided for denoising collision.")
             U_col, op_seq, gate_seq = self._init_denoising_collision_(np.array(u0))
 
-        elif self.collision_model_type == 'least-square':
-            U_col, op_seq, gate_seq = self._init_ls_collision_(omega=1, seed=seed)
+        # elif self.collision_model_type == 'least-square':
+        #     U_col, op_seq, gate_seq = self._init_ls_collision_(omega=1, seed=seed)
 
         else:
             raise ValueError("Unknown collision model type.")
@@ -250,11 +220,9 @@ class QuantumLBMSimulator:
             # Apply quantum gates in the ancilla and the data subsystems as provided by U
             if len(U) == 1:  # one big unitary for whole system (ancilla + data)
                 U_sys = U[0]
-                #print(U_sys.shape)
             elif len(U) == 2:  # two unitaries for ancilla and data subsystems
                 U_anc, U_vel = U
                 U_sys = np.kron(U_anc, U_vel)
-                #print(U_anc.shape, U_vel.shape, U_sys.shape)
             else:
                 raise ValueError("There are only 2 subsystems for ancilla and velocities.")
             return np.einsum('ij,...j->...i', U_sys, system_states)
@@ -263,20 +231,22 @@ class QuantumLBMSimulator:
             NotImplementedError("Only 'full_unitary', 'subsystem_unitary', and 'quantum_gates' operator types are implemented.")
 
 
-    def collide(self, states, embed_fn: Callable):
+    def collide(self, states, embed_fn: Callable, collide_operation: dict):
         # Implement collision step
 
         # Embed states into larger space
         system_states = embed_fn(states)
 
         if self.apply_operators_as == 'full_unitary':
-            outputs = self.apply_system_unitary(self.U_col, system_states)
+            outputs = self.apply_system_unitary(collide_operation["full_unitary"], system_states)
+
         elif self.apply_operators_as == 'subsystem_unitary':
-            for U in self.U_col_op_seq:
+            for U in collide_operation["subsystem_unitary"]:
                 system_states = self.apply_system_unitary(U, system_states)
             outputs = system_states
+
         elif self.apply_operators_as == 'quantum_gates':
-            for U in self.U_col_gate_seq:
+            for U in collide_operation["quantum_gates"]:
                 system_states = self.apply_system_unitary(U, system_states)
             outputs = system_states
         else:
@@ -291,13 +261,12 @@ class QuantumLBMSimulator:
 
     def apply_boundary_conditions(self, states, obstacles, u_obstacles):
         # Implement boundary conditions
-        return bounce_back_obstacles(states, obstacles, u_obstacles, lattice=self.lattice, dims=self.grid_size)
+        return bounce_back_obstacles(states, obstacles, u_obstacles, lattice=self.lattice, encoding_type=self.encoding_type, dims=self.grid_size)
 
 
-    def step(self, states: np.ndarray, obstacles: np.ndarray, u_obstacles: np.ndarray|None, embed_fn: Callable):
+    def step(self, states: np.ndarray, obstacles: np.ndarray, u_obstacles: np.ndarray|None, embed_fn: Callable, collide_operation: dict):
         # Streaming
         states = self.stream(states)
-        #print("After streaming:", np.linalg.norm(states[obstacles]))
 
         # Boundary conditions: bounce-back
         states = self.apply_boundary_conditions(states, obstacles, u_obstacles)
@@ -305,7 +274,7 @@ class QuantumLBMSimulator:
 
         # Collision
         norm = np.linalg.norm(states)
-        system_states = self.collide(states, embed_fn)  # Embed into larger space then collide
+        system_states = self.collide(states, embed_fn, collide_operation)  # Embed into larger space then collide
 
         # post-selection |psi> from the system state |0>|psi> + |1>|junk>, then renormalize
         postselects = system_states[..., :self.Q]  # take the system part
@@ -316,10 +285,14 @@ class QuantumLBMSimulator:
 
     def simulate(self,
                  F_init: np.ndarray,
-                 obstacles: np.ndarray,
-                 u_obstacles: np.ndarray | None,
+                 obstacles: np.ndarray | Callable,
+                 u_obstacles: np.ndarray | Callable | None,
+                 u0: Union[Sequence[float], NDArray[float]] | Callable | None,
                  num_steps: int,
                  show_every: int = 20):
+
+        if u0 is not None:
+            assert self.collision_model_type == 'denoising', "Reference velocity is only supported for denoising collision model."
 
         multiply_ket0 = lambda psi: np.concatenate([psi, np.zeros_like(psi)], axis=-1)  # function |psi> --> |0>|psi>
 
@@ -328,6 +301,21 @@ class QuantumLBMSimulator:
         else: # self.encoding_type == 'full':
             init_states = F_init.copy()
 
+        obstacles_t = obstacles if isinstance(obstacles, Callable) else None
+        u_obstacles_t = u_obstacles if isinstance(u_obstacles, Callable) else None
+
+        if isinstance(u0, Callable):
+            print("Reference velocity is time-dependent.")
+            u0_t = u0
+        elif isinstance(u0, (Sequence, np.ndarray)):
+            print("Reference velocity is time-independent (fixed u0).")
+            # This matches the old behavior where we called init_collision_operator(u0=...)
+            self.init_collision_operator(u0=np.array(u0))
+            u0_t = None
+        else:
+            assert u0 is None, "u0 must be either None, an array-like, or a callable."
+            assert self.U_col is not None, "Collision operator must be initialized before simulation if u0 is None."
+            u0_t = None
 
         states = init_states.copy()
         init_norm = np.linalg.norm(states)
@@ -335,76 +323,86 @@ class QuantumLBMSimulator:
         print("Initial norm:", init_norm)
 
         for i in range(num_steps):
-            states = self.step(states, obstacles=obstacles, u_obstacles=u_obstacles, embed_fn=multiply_ket0)
+            obstacles_i = obstacles_t(i) if obstacles_t is not None else obstacles
+            u_obstacles_i = u_obstacles_t(i) if u_obstacles_t is not None else u_obstacles
+
+            if u0_t is not None:
+                u0_i = np.array(u0_t(i))
+                U_col, op_seq, gate_seq = self._init_denoising_collision_(u0_i)
+            else:
+                ## Using fixed collision operator
+                U_col, op_seq, gate_seq = self.U_col, self.U_col_op_seq, self.U_col_gate_seq
+
+            if obstacles_t is not None:
+                assert obstacles_i.shape == self.grid_size, "Obstacles shape mismatch."
+            if u_obstacles_t is not None:
+                assert u_obstacles_i.shape == self.grid_size + (self.d,), "u_obstacles shape mismatch."
+            if u0_t is not None:
+                assert u0_i.shape == (self.d,), "u0 shape mismatch."
+
+            col_op = {"full_unitary": U_col, "subsystem_unitary": op_seq, "quantum_gates": gate_seq}
+
+            states = self.step(states,
+                               obstacles=obstacles_i,
+                               u_obstacles=u_obstacles_i,
+                               embed_fn=multiply_ket0,
+                               collide_operation=col_op)
+
             if i % show_every == 0:
                 print("Iteration", i)
-                self.plot_field(init_norm * states, obstacles)
+                self.plot_field(init_norm * states, obstacles_i, i)
 
         plt.clf()
         plt.cla()
         plt.close('all')
-        return states #* norm
+        return init_norm * states
 
 
-    def plot_field(self, states, obstacles):
+    def plot_field(self, states, obstacles, i: int = None):
         selected_sign  = np.sign(np.sum(states, axis=-1, keepdims=True))
         states = states * selected_sign
 
+        if self.encoding_type == 'sqrt':
+            F = np.clip(states, a_min=0, a_max=None)**2
+        else:
+            F = np.clip(states, a_min=0, a_max=None)
 
-        F = np.clip(states, a_min=0, a_max=None)**2
         F[obstacles] = 0
 
         rho = np.sum(F, axis=-1, keepdims=True)
         u = np.matmul(F, self.c) / (rho + 1e-12)
+        u_norm = np.linalg.norm(u, axis=-1)
+        #print("u_avg", np.mean(u, axis=(0,1)))
 
-        norm_u_sq = np.linalg.norm(u, axis=-1)
-        plt.imshow(norm_u_sq)
 
-        # ux, uy = u[..., 0], u[...,1]
-        # dfydx = ux[2:, 1:-1] - ux[:-2, 1:-1]
-        # dfxdy = uy[1:-1, 2:] - uy[1:-1, :-2]
-        # curl = dfxdy - dfydx
-        # plt.imshow(curl, cmap='bwr')
+        plt.imshow(rho, origin='lower')
+        #plt.imshow(u_norm, origin='lower', vmax=0.1/np.sqrt(3), vmin=-0.1/np.sqrt(3))
+        #plt.plot(range(len(rho)), rho)
 
         plt.pause(.01)
         plt.cla()
 
 
 if __name__ == "__main__":
-    from src.qlbm.domain_settings import axial_flow, gaussian_hill, couette_flow, cavity_flow
+    from src.testcases import taylor_green, fourier, cylinder, gaussian
 
-    # Example usage of QLBMSimulator
-    lattice = "D2Q9"
-    grid_size = (401, 101)  # 2D grid
-    encoding_type = 'sqrt'
+    cs = 1.0 / np.sqrt(3)
+    #config, F, solid, u_solid = cylinder.setup_testcase()
+    config, F, solid, u_solid = gaussian.setup_testcase()
+    #config, F, solid, u_solid = taylor_green.setup_testcase()
+    #config, F, solid, u_solid = fourier.setup_testcase()
+
+    # Example usage
+    lattice = config["lattice"]
+    grid_size = config["grid_size"]
+    encoding_type = 'sqrt'  # 'sqrt' or 'full'
     collision_model_type = 'denoising'
-    eq_dist_deg = 2
+    is_scalar_field = config["is_scalar_field"]
     apply_operators_as = 'full_unitary'  # 'full_unitary' or 'subsystem_unitary' or 'quantum_gates'
 
+    denoise_qlbm = QuantumLBMSimulator(lattice, grid_size, encoding_type, collision_model_type, is_scalar_field, apply_operators_as)
 
-    denoise_qlbm = QuantumLBMSimulator(lattice, grid_size, encoding_type, collision_model_type, eq_dist_deg, apply_operators_as)
-    denoise_qlbm.init_collision_operator(u0=[0.2,0.], seed=0)
-
-    # A_denoise = denoise_qlbm.U_col[:denoise_qlbm.Q, :denoise_qlbm.Q].real
-    # s_denoise = np.linalg.svd(A_denoise, compute_uv=False)
-    # print("Denoising collision unitary:")
-    # print(A_denoise.round(4))
-    # print("Singular values:", s_denoise.round(4))
-    # print()
-
-    Nx, Ny = grid_size
-    obstacles = [
-        ('round', (Ny // 2, Nx / 4), 13),
-        #('box', (Ny * 0.7, Nx * 0.6), (14, 16)),
-    ]
-
-    #F, solid = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
-    #F, solid = gaussian_hill.setup_domain((Ny, Nx), 'D2Q9')
-    F, solid, u_solid = couette_flow.setup_domain((Ny, Nx), 'D2Q9')
-    #F, solid, u_solid = cavity_flow.setup_domain((Ny, Nx), 'D2Q9')
-
-
-    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, u_obstacles=u_solid, num_steps=10000)
+    denoise_output_states = denoise_qlbm.simulate(F, obstacles=solid, u_obstacles=u_solid, u0=config["u0"], num_steps=10000, show_every=20)
     denoise_output_states = denoise_output_states.reshape(*grid_size, denoise_qlbm.Q)
 
 

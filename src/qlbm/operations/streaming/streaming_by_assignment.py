@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 import numpy as np
 
 # --- in-grid streaming (periodic BC) ---

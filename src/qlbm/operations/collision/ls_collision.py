@@ -1,8 +1,7 @@
-from src.qlbm.lbm_lattices import get_lattice
-from src.qlbm.gate_decomposition.block_encoding import nagy_block_encoding, schlimgen_block_encoding
+from src.lattices.lbm_lattices import get_lattice
 
 import numpy as np
-import scipy
+
 
 def proj_opnorm_ball(A: np.ndarray, radius: float = 1.0):
     """
@@ -85,7 +84,7 @@ class LSCollision:
 if __name__ == '__main__':
     from src.qlbm.data_generation.sample_distribution import sample_low_mach_data
     from src.qlbm.data_generation.create_states import distributions_to_statevectors
-    from src.qlbm.lbm_symmetries import get_symmetry
+    from src.lattices.lbm_symmetries import get_symmetry
 
     rng = np.random.default_rng(0)
 

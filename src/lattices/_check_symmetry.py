@@ -95,8 +95,8 @@ def verify_permutation_group(c, w, perm_dict, expected_size=None, check_closure=
     }
 
 if __name__ == '__main__':
-    from src.qlbm.lbm_lattices import d1q3, d2q9, d3q15, d3q19, d3q27
-    from src.qlbm.lbm_symmetries import permutations_D1Q3, permutations_D2Q9, permutations_D3Q15, permutations_D3Q19, permutations_D3Q27
+    from src.lattices.lbm_lattices import d1q3, d2q9, d3q15, d3q19, d3q27
+    from src.lattices.lbm_symmetries import permutations_D1Q3, permutations_D2Q9, permutations_D3Q15, permutations_D3Q19, permutations_D3Q27
 
 
     # Build lattice data

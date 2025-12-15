@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 import numpy as np
 
 def _opposites_from_c(c: np.ndarray) -> np.ndarray:
@@ -21,8 +21,8 @@ def bounce_back_obstacles(states: np.ndarray,
                           obstacle: np.ndarray,
                           u_obstacle: np.ndarray | None,
                           lattice: str,
-                          dims=None,
-                          inplace: bool = False) -> np.ndarray:
+                          encoding_type: str,
+                          dims=None) -> np.ndarray:
     """
     On-site bounce-back at obstacle cells: swap distributions f_q <-> f_{opp(q)} on those cells.
 
@@ -37,8 +37,6 @@ def bounce_back_obstacles(states: np.ndarray,
         Lattice name understood by get_lattice (e.g., "D2Q9", "D3Q19", ...).
     dims     : tuple[int], optional
         Required if states is flattened (N, Q): the grid dimensions (X1,...,Xd).
-    inplace : bool
-        If True, modify the input `states` array where possible; otherwise work on a copy.
 
     Returns
     -------
@@ -53,7 +51,7 @@ def bounce_back_obstacles(states: np.ndarray,
     # --- Normalize shapes (mirror streaming_periodic) ---
     if states.ndim == d + 1:
         grid_shape = states.shape[:-1]
-        states_grid = states if inplace else states.copy()
+        states_grid = states.copy()
         flattened = False
     elif states.ndim == 2:
         if dims is None or len(dims) != d:
@@ -61,7 +59,7 @@ def bounce_back_obstacles(states: np.ndarray,
         N = int(np.prod(np.array(dims)))
         if states.shape != (N, Q):
             raise ValueError(f"Expected states shape (N={N}, Q={Q}); got {states.shape}.")
-        states_grid = (states if inplace else states.copy()).reshape(*dims, Q)
+        states_grid = (states.copy()).reshape(*dims, Q)
         grid_shape = tuple(dims)
         flattened = True
     else:
@@ -82,16 +80,19 @@ def bounce_back_obstacles(states: np.ndarray,
             f"Obstacle mask shape {obstacle.shape} is incompatible with grid {grid_shape}."
         )
 
-    F = states_grid  # alias
-
     # --- Swap f_q <-> f_opp on obstacle cells ---
     obs = obstacle_grid
     if not obs.any():
         # Nothing to do
-        return F.reshape(states.shape) if flattened else F
+        return states_grid.reshape(states.shape) if flattened else states_grid
 
-    obstacle_region = F[obs, :]
-    F[obs, :] = obstacle_region[:, opp]
+    assert encoding_type in ['full', 'sqrt'], f"encoding_type must be 'full' or 'sqrt', got {encoding_type}."
+    if encoding_type == 'full':
+        F = states_grid  # alias
+    else:
+        F = states_grid ** 2
+
+    F_boundary = F[obs, :]
 
     # --- moving obstacle correction ---
     if u_obstacle is not None:
@@ -105,7 +106,7 @@ def bounce_back_obstacles(states: np.ndarray,
             u_obstacle_grid = u_obstacle.reshape(grid_shape, *rest)
         else:
             raise ValueError(
-                f"Obstacle velocity shape {u_obstacle[:-1].shape} is incompatible with grid {grid_shape}."
+                f"Obstacle velocity shape {u_obstacle.shape[:-1]} is incompatible with grid {grid_shape}."
             )
 
         u_obs = u_obstacle_grid
@@ -113,7 +114,7 @@ def bounce_back_obstacles(states: np.ndarray,
 
         # u_obs: (*grid_size, d), take only obstacle nodes -> (Nobs, d)
         u_wall = u_obs[obs, :]  # velocities of the solid nodes
-        print("u_wall:", np.linalg.norm(u_wall))
+
         # cu: (Nobs, Q) = u_wall · c_i
         # c: (Q, d), so take transpose for matmul
         cu = u_wall @ c.T
@@ -121,9 +122,16 @@ def bounce_back_obstacles(states: np.ndarray,
         # Add moving-wall correction: f_i += 2 * w_i * rho0 * (c_i · u_wall) / cs^2
         rho0 = 1.
         cs2_inv = 3.
-        F[obs, :] += (2.0 * rho0 * cs2_inv * cu * w[np.newaxis,:])  # w broadcasts to (Nobs, Q)
+        F_boundary -= (2.0 * rho0 * cs2_inv * cu * w[np.newaxis,:])  # w broadcasts to (Nobs, Q)
 
-    return F.reshape(states.shape) if flattened else F
+    F[obs, :] = F_boundary[:, opp]
+
+    if encoding_type == 'sqrt':
+        bb_states = np.sqrt(abs(F)) * np.sign(F)
+    else:
+        bb_states = F
+
+    return bb_states.reshape(states.shape) if flattened else bb_states
 
 if __name__ == "__main__":
     # D2Q9 test

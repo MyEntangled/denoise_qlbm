@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 from src.qlbm.data_generation.sample_distribution import get_equilibrium
 
 import numpy as np
@@ -33,9 +33,9 @@ def setup_domain(domain_dims, lattice, u_top=0.1, base_density=1.0, noise_level=
     u_solid[-1, :, 0] = u_top  # top wall moves with velocity (u_top, 0)
 
 
-    # # Boundary velocity for top moving wall
+    # --- initial velocity field ---
     u = np.zeros((*domain_dims, d))
-    u[..., 0] = 0.2  # initial flow in x-direction
+    #u[..., 0] = 0.01 * np.random.rand(*domain_dims)  # initial flow in x-direction
     # u[..., 1] = 0.1  # small initial flow in y-direction
     u[-1, :, 0] = u_top # top wall moves with velocity (u_top, 0)
     u[-1, :, 1] = 0.0
@@ -43,7 +43,7 @@ def setup_domain(domain_dims, lattice, u_top=0.1, base_density=1.0, noise_level=
 
 
     # Compute equilibrium
-    F = get_equilibrium(rho, u, lattice, eq_dist_deg=2)
+    F = get_equilibrium(rho, u, lattice)
 
     F[solid] = 0.
 

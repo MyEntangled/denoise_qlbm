@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import d1q3, d2q9, d3q15, d3q19, d3q27
+from src.lattices.lbm_lattices import d1q3, d2q9, d3q15, d3q19, d3q27
 
 from functools import lru_cache
 import numpy as np
@@ -185,7 +185,8 @@ def get_symmetry(name: str):
 
 # Permutation application utilities
 # -------------------------
-from typing import Mapping, Sequence
+from typing import Mapping
+
 
 def _perm_to_index_array(perm, q: int) -> np.ndarray:
     """Normalize a permutation to a full index array of length q.

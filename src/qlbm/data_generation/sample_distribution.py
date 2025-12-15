@@ -1,4 +1,4 @@
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 from src.qlbm.data_generation.lbm_collision import get_equilibrium, collide
 from src.qlbm.data_generation.sample_noise import sample_zero_moments_noise
 import numpy as np

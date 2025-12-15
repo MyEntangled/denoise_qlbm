@@ -1,9 +1,5 @@
-from src.qlbm.lbm_lattices import get_lattice
-
 import numpy as np
-
-import numpy as np
-from src.qlbm.lbm_lattices import get_lattice
+from src.lattices.lbm_lattices import get_lattice
 
 def setup_domain(domain_dims, lattice, obstacles=(), *,
                  base_density=1.0,
