@@ -5,13 +5,32 @@ import numpy as np
 
 def setup_testcase(C0: float = 1., C1: float = 0.5, u_max = 0.1/np.sqrt(3), mu: float = 1e-3):
     """
-    LBM initializer for the advection-diffusion under advection field u(x,t) = u_max cos(mu * t)
+    LBM initializer for the advection-diffusion of a Fourier mode under a time-varying advection field.
+
+    The testcase simulates a 1D scalar field (concentration) evolving under the velocity field
+    u(x,t) = u_max * cos(mu * t). The initial condition is a cosine wave (Fourier mode).
+
+    Parameters
+    ----------
+    C0 : float, optional
+        Mean concentration (offset), by default 1.0.
+    C1 : float, optional
+        Amplitude of the initial Fourier mode, by default 0.5.
+    u_max : float, optional
+        Maximum advection velocity, by default 0.1/sqrt(3).
+    mu : float, optional
+        Angular frequency of the velocity oscillation, by default 1e-3.
 
     Returns
     -------
-    F : np.ndarray      (*domain_dims, Q)
-    solid : np.ndarray  (*domain_dims,), which is all False (hence periodic)
-    u_solid = None
+    config : dict
+        Dictionary containing simulation parameters (grid size, lattice, diffusion, etc.).
+    F : np.ndarray
+        Initial distribution function array of shape (*domain_dims, Q).
+    solid : np.ndarray
+        Boolean mask for solid nodes (all False for this periodic case).
+    u_solid : None
+        Velocity boundary condition values (None for this periodic case).
     """
     ## Fixed settings for this testcase
     domain_dims = (256,)
@@ -67,6 +86,25 @@ def setup_testcase(C0: float = 1., C1: float = 0.5, u_max = 0.1/np.sqrt(3), mu: 
 def exact_solution(C0: float = 1., C1: float = 0.5, u_max = 0.1/np.sqrt(3), mu: float = 1e-3):
     """
     Exact solution for the Fourier mode advection-diffusion testcase.
+
+    The analytical solution accounts for both diffusion (exponential decay) and
+    time-dependent advection (phase shift via the integral of the velocity field).
+
+    Parameters
+    ----------
+    C0 : float
+        Mean concentration.
+    C1 : float
+        Initial amplitude.
+    u_max : float
+        Maximum velocity.
+    mu : float
+        Velocity oscillation frequency.
+
+    Returns
+    -------
+    C : callable
+        A function `C(t)` that returns the concentration profile at time `t`.
     """
     ## Fixed settings for this testcase
     domain_dims = (256,)

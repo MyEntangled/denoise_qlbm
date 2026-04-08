@@ -5,14 +5,28 @@ import numpy as np
 
 def setup_testcase(u_max: float = 0.1/np.sqrt(3)):
     """
-    LBM initializer for the flow around a cylinder in D2Q9. Opposite bounaries are periodic.
-    There is a parabolic inflow profile in x-direction at t=0.
+    LBM initializer for the flow around a cylinder.
+
+    The testcase simulates a 2D flow in a rectangular grid. It defines a solid circular
+    obstacle (cylinder) and initializes the velocity field with a parabolic inflow
+    profile across the y-dimension.
+
+
+    Parameters
+    ----------
+    u_max : float, optional
+        The maximum velocity of the parabolic inflow profile, by default 0.1 / sqrt(3).
 
     Returns
     -------
-    F : np.ndarray      (*grid_size, Q)
-    solid : np.ndarray  (*grid_size,)
-    u_solid = None (no-slip)
+    config : dict
+        Dictionary containing simulation parameters (grid size, lattice, diffusion, etc.).
+    F : np.ndarray
+        Initial distribution function array of shape (*domain_dims, Q).
+    solid : np.ndarray
+        Boolean mask for solid nodes
+    u_solid : None
+        Velocity boundary condition values at solid nodes.
     """
     ## Fixed settings for this testcase
     #domain_dims = (440, 82)   # (nx, ny)

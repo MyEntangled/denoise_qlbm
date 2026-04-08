@@ -3,71 +3,34 @@ from src.qlbm.data_generation.sample_distribution import get_equilibrium
 
 import numpy as np
 
-# def _init_gaussian(grid_size, C0: float, sigma0: float, x0: np.ndarray):
-#     """
-#     Create a Gaussian hill:
-#         C(x) = C0 * exp(-|x - x0|^2 / (2*sigma0^2))
-#
-#     Parameters
-#     ----------
-#     grid_size : tuple of int
-#         (nx,), (nx, ny), or (nx, ny, nz)
-#     C0 : float
-#         Peak amplitude.
-#     sigma0 : float
-#         Standard deviation (lattice units).
-#     x0 : None or array-like
-#         Center point. Must have same dimension as grid_size.
-#     Returns
-#     -------
-#     C : ndarray
-#         Gaussian hill with shape = grid_size.
-#     """
-#     grid_size = tuple(grid_size)
-#     dim = len(grid_size)
-#
-#     # Coordinates
-#     coords = np.indices(grid_size)  # shape (dim, *grid_size)
-#
-#     x0 = np.array(x0, dtype=float)
-#     if (np.any(x0 < 0) or np.any(x0 >= np.array(grid_size))):
-#         raise ValueError("x0 must be within the grid.")
-#
-#     # Compute squared radial distance |x - x0|^2
-#     r2 = np.zeros(grid_size, dtype=float)
-#     for d in range(dim):
-#         r2 += (coords[d] - x0[d])**2
-#
-#     # Gaussian amplitude
-#     if sigma0 > 0:
-#         C = C0 * np.exp(-r2 / (2 * sigma0**2))
-#     elif sigma0 == 0:
-#         C = np.zeros(grid_size, dtype=float)
-#         if (x0 != np.floor(x0)).any():
-#             raise ValueError("For sigma0=0, x0 must be at integer grid point.")
-#         C[*np.astype(x0, int)] = C0
-#     else:
-#         raise ValueError("sigma0 must be non-negative.")
-#
-#     return C
-
 def setup_testcase(C0: float = 1, sigma0: float = 50, x0: np.ndarray|None = None, u_adv: np.ndarray|None = np.array([.3, .2])/np.sqrt(3)):
     """
-    LBM initializer for the advection-diffusion of a Gaussian hill in D2Q9, with periodic boundaries.
-    :param C0: float
-        Peak amplitude of the Gaussian.
-    :param sigma0: float
-        Standard deviation of the Gaussian (lattice units).
-    :param x0: array-like, shape (2,)
-        Center of the Gaussian hill. If None, defaults to center of the domain.
-    :param u_adv: array-like, shape (2,)
-        Constant advection velocity. If None, zero velocity is used.
+    LBM initializer for the advection-diffusion of a Gaussian hill.
+
+    The testcase simulates a 2D scalar field representing a Gaussian concentration
+    profile evolving under a constant advection velocity with periodic boundaries.
+
+    Parameters
+    ----------
+    C0 : float, optional
+        Peak amplitude of the Gaussian, by default 1.
+    sigma0 : float, optional
+        Standard deviation of the Gaussian in lattice units, by default 50.
+    x0 : np.ndarray or None, optional
+        Center of the Gaussian hill of shape (2,). If None, defaults to the center of the domain.
+    u_adv : np.ndarray or None, optional
+        Constant advection velocity of shape (2,), by default np.array([.3, .2])/sqrt(3). If None, zero velocity is used.
 
     Returns
     -------
-    F : np.ndarray      (*domain_dims, Q)
-    solid : np.ndarray  (*domain_dims,), which is all False (hence periodic)
-    u_solid = None
+    config : dict
+        Dictionary containing simulation parameters (grid size, lattice, diffusion, etc.).
+    F : np.ndarray
+        Initial distribution function array of shape (*domain_dims, Q).
+    solid : np.ndarray
+        Boolean mask for solid nodes (all False for this periodic case).
+    u_solid : None
+        Velocity boundary condition values (None for this periodic case).
     """
     ## Fixed settings for this testcase
     domain_dims = (256, 256)

@@ -6,23 +6,25 @@ import numpy as np
 
 def setup_testcase(u_max: float = 0.1/np.sqrt(3)):
     """
-    LBM initializer for the 2D Taylor–Green vortex in D2Q9 with periodic boundaries.
+    LBM initializer for the flow of 2D Taylor-Green vortices.
+
+    The testcase simulates the time decay of the velocity fields.
 
     Parameters
     ----------
     u_max : float
-        Velocity amplitude (in lattice units).
+        Initial velocity magnitude, by default 0.1 / sqrt(3).
 
     Returns
     -------
     config : dict
-        Configuration dictionary for the solver.
+        Dictionary containing simulation parameters (grid size, lattice, diffusion, etc.).
     F : np.ndarray
-        Initial distribution function, shape = (*grid_size, Q).
+        Initial distribution function array of shape (*domain_dims, Q).
     solid : np.ndarray
-        Obstacle mask, all False → fully periodic.
-    u_solid : None
-        No moving/no-slip obstacles.
+        Boolean mask for solid nodes (all False for this periodic case).
+    u_solid : NoneType
+        Velocity boundary condition values (None for this periodic case).
     """
     domain_dims = (256, 256)
     grid_size = tuple(domain_dims[::-1])  # reverse for array indexing
@@ -87,41 +89,28 @@ def exact_solution(
     u_max: float = 0.1 / np.sqrt(3),
     rho0: float = 1.0
 ):
-    """Analytical velocity and pressure fields for the 2D Taylor–Green vortex.
+    """
+    Generate functions for the analytical velocity and density fields.
 
-    Domain (continuous):
-        x, y \in [0, 2π] with periodic boundary conditions.
+    The solution describes the temporal decay of the vortex due to viscosity.
+    The velocity field decays as exp(-t/td) and the pressure/density fluctuations
+    decay as exp(-2t/td).
 
-    Discrete mapping:
-        x = 2π * i / Nx,  i = 0, ..., Nx-1
-        y = 2π * j / Ny,  j = 0, ..., Ny-1
-
-    Velocity field (decaying Taylor–Green vortex):
-        u_x(x,y,t) =  U0 * sin(x) * cos(y) * exp(-2 * ν * t)
-        u_y(x,y,t) = -U0 * cos(x) * sin(y) * exp(-2 * ν * t)
-
-    Pressure field (up to an arbitrary constant p0):
-        p(x,y,t) = p0 + (rho0 * U0**2 / 4) * (cos(2x) + cos(2y)) * exp(-4 * ν * t)
-
-    where, in lattice units with Δx = Δt = 1 and cs^2 = 1/3,
-        τ   = 1 / ω,  with ω = 1 (fixed in the quantum collision),
-        ν   = cs^2 * (τ - 1/2) = (1/3) * (1 - 1/2) = 1/6.
+    Note: In LBM, pressure is related to density via p = cs^2 * rho.
 
     Parameters
     ----------
     u_max : float
-        Velocity amplitude in lattice units.
+        Initial maximum velocity amplitude in lattice units.
     rho0 : float
-        Reference density.
-    p0 : float
-        Reference pressure offset.
+        Reference background density.
 
     Returns
     -------
     u_exact : callable
-        u_exact(t) -> ndarray of shape (Ny, Nx, 2) giving velocity field at time t.
+        A function `f(t)` that returns the velocity field (Ny, Nx, 2) at time `t`.
     rho_exact : callable
-        rho_exact(t) -> ndarray of shape (Ny, Nx) giving density field at time t.
+        A function `f(t)` that returns the density field (Ny, Nx) at time `t`.
     """
     domain_dims = (256, 256)
     Nx, Ny = domain_dims
