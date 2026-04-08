@@ -49,6 +49,7 @@ env/
 Thumbs.db
 
 # Specific to this project
-"src/qlbm/operations/amplitude_amplification/"
-"src/qlbm/gate_decomposition/cossin_decomposition.py"
-"src/qlbm/domain_settings/"
+src/qlbm/operations/amplitude_amplification/
+src/qlbm/gate_decomposition/cossin_decomposition.py
+src/qlbm/domain_settings/
+src/testcases/unused
