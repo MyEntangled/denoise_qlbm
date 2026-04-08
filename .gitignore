@@ -22,6 +22,8 @@ output/
 *.h5
 *.log
 *.out
+*.pdf
+*.bib
 
 # Retired or backup code
 old/

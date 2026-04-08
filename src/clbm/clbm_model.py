@@ -23,12 +23,7 @@ class ClassicalLBMSimulator:
         return streaming_periodic(F, lattice=self.lattice, dims=self.grid_size, applied_region=applied_region)
 
     def apply_boundary_conditions(self, F: np.ndarray, obstacles, u_obstacles):
-        #F_bndry = F[obstacles]
-        #F_bndry = F_bndry[..., self.opposite_indices]  # Bounce-back mode change
-        #F[obstacles] = F_bndry
-
         F_bndry = F[obstacles]
-
 
         if u_obstacles is not None:
             # u_obs: (*grid_size, d), take only obstacle nodes -> (Nobs, d)
@@ -152,34 +147,11 @@ class ClassicalLBMSimulator:
                 print(np.mean(u, axis=(0,1)))
 
                 u_norm = np.linalg.norm(u, axis=-1)
-                #plt.imshow(u_norm, origin="lower", vmin=-0.1/np.sqrt(3), vmax= 0.1/np.sqrt(3))
+                plt.imshow(u_norm, origin="lower", vmin=-0.1/np.sqrt(3), vmax= 0.1/np.sqrt(3))
 
-                # u_max = 0.1 / np.sqrt(3)
-                # Nx, Ny = self.grid_size
-                # kx = 2 * np.pi / Nx
-                # ky = 2 * np.pi / Ny
-                # nu = 1./6
-                # td = 1.0/(nu * (kx*kx + ky*ky))
-                # print(np.max(u_norm) / u_max * np.exp(i / td))
 
-                plt.imshow(rho, origin="lower")
+                #plt.imshow(rho, origin="lower")
                 #plt.plot(range(len(rho)), rho)
-
-
-                # ux, uy = u[..., 0], u[..., 1]
-                # dfydx = ux[2:, 1:-1] - ux[:-2, 1:-1]
-                # dfxdy = uy[1:-1, 2:] - uy[1:-1, :-2]
-                # curl = dfxdy - dfydx
-
-                # ux = u[..., 0]
-                # uy = u[..., 1]
-                #
-                # # central differences with periodic BC
-                # dvy_dx = (np.roll(uy, -1, axis=1) - np.roll(uy, 1, axis=1)) / (2.0)
-                # dux_dy = (np.roll(ux, -1, axis=0) - np.roll(ux, 1, axis=0)) / (2.0)
-                #
-                # curl = dvy_dx - dux_dy
-                # plt.imshow(curl, cmap='bwr', origin='lower')
 
                 plt.pause(.01)
                 plt.cla()
@@ -187,7 +159,7 @@ class ClassicalLBMSimulator:
         return F
 
 if __name__ == "__main__":
-    from src.testcases import taylor_green, fourier, gaussian
+    from src.testcases import taylor_green, fourier, cylinder, gaussian
 
     # Set up LBM lattice
     lattice = 'D2Q9'
@@ -205,18 +177,8 @@ if __name__ == "__main__":
         #('box', (Ny * 0.7, Nx * 0.6), (4, 6)),
     ]
 
-    #F, solid = axial_flow.setup_domain((Ny, Nx), 'D2Q9', obstacles, flow_axis=0, flow_boost=2.3)
-    #F, solid = ade_gaussian_hill.setup_domain((Ny, Nx), 'D2Q9')
-    #u_solid = None
-    #F, solid, u_solid = couette_flow.setup_domain((Ny, Nx), 'D2Q9')
-    #F, solid, u_solid = cavity_flow.setup_domain((Ny, Nx), 'D2Q9')
-
-    #_, F, solid, u_solid = cylinder.setup_testcase(u_max=0.1)    # solid is time-dependent
+    #config, F, solid, u_solid = cylinder.setup_testcase(u_max=0.1)    # solid is time-dependent
     config, F, solid, u_solid = gaussian.setup_testcase()
-    #_, F, solid, u_solid = cavity.setup_testcase(u_top=0.1)
-    #config, F, solid, u_solid = couette.setup_testcase(u_top=0.1)
-    #config, F, solid, u_solid = moving_cylinder.setup_testcase(u_max=0.5)    # solid is time-dependent
-    #config, F, solid, u_solid = shear.setup_testcase(1.)    # solid is time-dependent
     #config, F, solid, u_solid = taylor_green.setup_testcase()
     #config, F, solid, u_solid = fourier.setup_testcase()
     grid_size = (256,256)

@@ -112,7 +112,7 @@ class DenoisingCollision:
                 ])
 
         B = np.array(components).T
-        return B[:,0], B[:,1:]
+        return B
 
 
     @staticmethod
@@ -139,10 +139,8 @@ class DenoisingCollision:
         W_sqrt_inv = np.diag(1/sqrt_w)
 
         V = self.build_discrete_hermite_basis()
-        x0, B = self.build_tangent_space(u0, encoding_type)
-        T = self.tangent_space_projector(np.concatenate([x0.reshape(-1,1), B], axis=1))
-
-        #T = self.tangent_space_projector(B)
+        B = self.build_tangent_space(u0, encoding_type)
+        T = self.tangent_space_projector(B)
 
         if encoding_type == 'full':
             if manifold_aware:
@@ -154,32 +152,6 @@ class DenoisingCollision:
                 D = V @ T @ V.T
             else:
                 D = V @ V.T
-
-        ## Try out new idea:
-
-        # if encoding_type == 'full':
-        #     if manifold_aware:
-        #         latent_dim = (self.D + 1)*(self.D + 2) // 2
-        #         D = W_sqrt @ V @ (Tp @ V.T @ W_sqrt_inv + (np.eye(latent_dim) - Tp) @ x0)
-        #     else:
-        #         D = W_sqrt @ V @ V.T @ W_sqrt_inv
-        # else:
-        #     if manifold_aware:
-        #         latent_dim = (self.D + 1) * (self.D + 2) // 2
-        #         Tn = np.eye(latent_dim) - Tp    # projector on normal space
-        #         phi0 = V @ x0
-        #         alpha = np.inner(phi0, phi0)    # estimate of <phi0, phi> by <phi0, phi0>
-        #         P0 = np.outer(phi0, phi0)
-        #         # print(x0)
-        #         # print(phi0)
-        #
-        #         D = V @ (Tp @ V.T + (1./alpha) * Tn @ V.T @ P0)
-        #     else:
-        #         D = V @ V.T
-
-        spec = np.linalg.eigvals(D.T @ D)
-        #print("Spectrum:", spec.round(4))
-        #print(np.linalg.norm(D @ D - D))
         return D
 
 
@@ -201,6 +173,66 @@ class DenoisingCollision:
         print("--- Denoiser Test Results ---")
         print(f"Test overlap: {test_overlap:.6f}  |  Test loss: {test_loss:.6e}")
         return {"loss": test_loss, "overlap": test_overlap}
+
+
+    def _check_symmetry_equivariance_(self):
+        from src.lattices.lbm_symmetries import permutations_D2Q9
+        from src.lattices.lbm_lattices import get_lattice
+
+        lattice = "D2Q9"
+        perm_dict = permutations_D2Q9()
+        c, w = get_lattice(lattice)
+
+        #u0 = np.zeros(self.D)
+        u0 = np.array([0.1, -0.05])
+
+        D = self.build_denoising_op(encoding_type='full', u0=u0, manifold_aware=True)
+        for name, perm in perm_dict.items():
+            print(name)
+            P = np.zeros((self.Q, self.Q))
+            perm_idx = [perm(i) for i in range(self.Q)]
+            for i in range(self.Q):
+                P[i, perm_idx[i]] = 1
+
+            D_permuted = P @ D @ P.T
+
+
+            # rotation by 90° CCW
+            R = np.array([[0, 1],
+                          [-1, 0]])
+
+            # reflection in x-axis
+            S = np.array([[1, 0],
+                          [0, -1]])
+
+            def apply_symmetry(name, u0):
+                """
+                name: string like 'r^0', 'r^1', 'r^2', 'r^3', or with 's' appended
+                u0: numpy array shape (2,)
+                """
+                # parse rotation power
+                if '^' not in name:
+                    raise ValueError("Bad format.")
+                power = int(name.split('^')[1][0])
+
+                # compute rotation part
+                M = np.linalg.matrix_power(R, power)
+
+                # check reflection
+                if name.endswith('s'):
+                    M = M @ S
+
+                return M @ u0
+
+            u0_rotated = apply_symmetry(name, u0)
+            print(u0_rotated)
+            D_rotated = self.build_denoising_op(encoding_type='full', u0=u0_rotated, manifold_aware=True)
+
+            if not np.allclose(D_permuted, D_rotated, atol=1e-6):
+                print(f"Equivariance test failed for symmetry '{name}'")
+                return False
+        print("All equivariance tests passed.")
+        return True
 
 
 if __name__ == '__main__':
@@ -254,3 +286,6 @@ if __name__ == '__main__':
     U, S, VT = np.linalg.svd(D)
     print("Singular values:", S.round(4))
     print("Singular vectors with singular value ~1:", U[:, S > 0.9999])
+
+
+    denoiser._check_symmetry_equivariance_()
