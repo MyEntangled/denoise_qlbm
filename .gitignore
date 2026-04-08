@@ -54,3 +54,4 @@ src/qlbm/operations/amplitude_amplification/
 src/qlbm/gate_decomposition/cossin_decomposition.py
 src/qlbm/domain_settings/
 src/testcases/unused
+plot_manifold_projection.py
