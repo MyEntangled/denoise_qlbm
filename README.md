@@ -2,6 +2,7 @@
 
 [![Paper](https://img.shields.io/badge/Paper-Preprint-blue.svg)](#) 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![DOI](https://zenodo.org/badge/1083855369.svg)](https://doi.org/10.5281/zenodo.19482608)
 
 This repository contains the official Python implementation for the paper **"Quantum Lattice Boltzmann with Denoising Collision Operators"** by Erio Trong Duong, Matthias Möller, and Norbert Hosters. 
 
