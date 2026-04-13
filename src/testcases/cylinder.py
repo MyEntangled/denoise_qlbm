@@ -3,7 +3,7 @@ from src.qlbm.data_generation.sample_distribution import get_equilibrium
 
 import numpy as np
 
-def setup_testcase(u_max: float = 0.1/np.sqrt(3)):
+def setup_testcase(u_max: float = 0.1/np.sqrt(3), u_ref_factor: float = 1./3):
     """
     LBM initializer for the flow around a cylinder.
 
@@ -46,7 +46,7 @@ def setup_testcase(u_max: float = 0.1/np.sqrt(3)):
         "is_scalar_field": False,
         "u_max": u_max,
         "nu": nu,
-        "u0": 0 * np.array([u_max, 0.0]),  # reference velocity for denoising collision
+        "u0": u_ref_factor * np.array([u_max, 0.0]),  # reference velocity for denoising collision
     }
 
     c, w = get_lattice(lattice, as_array=True)

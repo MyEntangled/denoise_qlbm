@@ -37,7 +37,7 @@ We provide four distinct fluid dynamic benchmarks to evaluate the classical and 
 3. **`taylor_green`**: Flow of a 2D Taylor-Green decaying vortex.
 4. **`cylinder`**: Flow around a 2D cylinder.
 
-> **Note on Reproducibility:** The default parameters embedded within these test case files correspond exactly to the numerical results presented in the paper. Running them without passing custom parameter overrides will automatically reproduce the baseline data used for the publication's plots.
+> **Note on Reproducibility:** Running the test case files with their default parameters will automatically reproduce the paper's baseline numerical results. To reproduce the specific parameter variations shown in the **`gaussian`** and **`cylinder`* plots, use the `--parameters` argument with the exact values provided in the examples below.
 
 ## Usage
 
@@ -63,12 +63,15 @@ python src/run_experiment.py --testcase fourier --steps 10000
 
 **2. Run ONLY the Classical LBM for flow past a cylinder:**
 ```bash
-python src/run_experiment.py --testcase cylinder --steps 1000 --run-classical
+python src/run_experiment.py --testcase cylinder --steps 10000 --run-classical
 ```
 
-**3. Run ONLY the Quantum LBM for a Gaussian hill with custom parameters:**
+**3. Run the solvers with custom parameters to reproduce additional numerical results for **`gaussian`** and **`cylinder`* plots
 ```bash
-python src/run_experiment.py --testcase gaussian --steps 200 --run-quantum --parameters 0.5 1.2
+python src/run_experiment.py --testcase gaussian --steps 10000 --parameters 1 5
+python src/run_experiment.py --testcase gaussian --steps 10000 --parameters 1 20
+python src/run_experiment.py --testcase cylinder --steps 10000 --parameters 0.05773502691 0.
+python src/run_experiment.py --testcase cylinder --steps 10000 --parameters 0.05773502691 0.66666666667
 ```
 
 ## Output Format
