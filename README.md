@@ -66,7 +66,7 @@ python src/run_experiment.py --testcase fourier --steps 10000
 python src/run_experiment.py --testcase cylinder --steps 10000 --run-classical
 ```
 
-**3. Run the solvers with custom parameters to reproduce additional numerical results for **`gaussian`** and **`cylinder`* plots
+**3. Run the solvers with custom parameters to reproduce additional numerical results for **`gaussian`** and **`cylinder`** plots
 ```bash
 python src/run_experiment.py --testcase gaussian --steps 10000 --parameters 1 5
 python src/run_experiment.py --testcase gaussian --steps 10000 --parameters 1 20
