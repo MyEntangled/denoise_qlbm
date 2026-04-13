@@ -15,6 +15,7 @@ build/
 results/
 output/
 testing/
+documents/
 *.csv
 *.tsv
 *.dat
