@@ -37,7 +37,7 @@ We provide four distinct fluid dynamic benchmarks to evaluate the classical and 
 3. **`taylor_green`**: Flow of a 2D Taylor-Green decaying vortex.
 4. **`cylinder`**: Flow around a 2D cylinder.
 
-> **Note on Reproducibility:** Running the test case files with their default parameters will automatically reproduce the paper's baseline numerical results. To reproduce the specific parameter variations shown in the **`gaussian`** and **`cylinder`* plots, use the `--parameters` argument with the exact values provided in the examples below.
+> **Note on Reproducibility:** Running the test case files with their default parameters will automatically reproduce the paper's baseline numerical results. To reproduce the specific parameter variations shown in the **`gaussian`** and **`cylinder`** plots, use the `--parameters` argument with the exact values provided in the examples below.
 
 ## Usage
 
